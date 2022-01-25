@@ -6,9 +6,9 @@ use super::ServiceItem;
 
 #[derive(PartialEq, Eq, Clone)]
 pub struct Node {
-    id: String,
+    pub id: String,
     instance_id: Option<String>,
-    available: bool,
+    pub available: bool,
     local: bool,
     last_heartbeat_time: Duration,
     /* feields that need to be added later.
@@ -74,12 +74,7 @@ impl Node {
         }
         self.available = false;
     }
-    pub fn id(&self) -> &str {
-        &self.id
-    }
-    pub fn available(&self) -> bool {
-        self.available
-    }
+
     pub fn services_len(&self) -> usize {
         self.services.len()
     }

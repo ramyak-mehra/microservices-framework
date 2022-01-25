@@ -1,12 +1,11 @@
 use std::sync::Arc;
 
 use super::*;
-use action_endpoint::ActionEndpoint;
-
+#[derive(PartialEq, Eq, Clone)]
 pub struct EndpointList {
     registry: Arc<Registry>,
     broker: Arc<Broker>,
-    name: String,
+   pub name: String,
     group: Option<String>,
     internal: bool,
     endpoints: Vec<ActionEndpoint>,
@@ -39,7 +38,7 @@ impl EndpointList {
         let entry = self
             .endpoints
             .iter_mut()
-            .find(|x| x.node() == &*node && x.service().name == service.name);
+            .find(|x| x.node() == &*node && x.service_name() == service.name);
 
         match entry {
             Some(found) => {

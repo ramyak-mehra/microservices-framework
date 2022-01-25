@@ -36,7 +36,7 @@ impl NodeCatalog {
             .set_seq(1)
             .set_client(client);
 
-        self.nodes.insert(node.id().to_string(), node.clone());
+        self.nodes.insert(node.id.to_string(), node.clone());
         self.local_node = Some(node.clone());
         return node;
         todo!()
@@ -69,7 +69,7 @@ impl NodeCatalog {
         let mut count: usize = 0;
         self.nodes.iter().for_each(|node_item| {
             let (_, node) = node_item;
-            if node.available() {
+            if node.available {
                 count = count.saturating_add(1);
             }
         });
@@ -83,21 +83,38 @@ impl NodeCatalog {
     }
 
     pub fn list(&self, only_available: bool, with_services: bool) -> Vec<&Node> {
-        let mut nodes = Vec::new();
-        self.nodes.iter().for_each(|node_item| {
-            let (_, node) = node_item;
-            if only_available && !node.available() {
-                return;
-            }
-            if with_services && node.services_len() <= 0 {
-                return;
-            }
-            nodes.push(node);
-        });
-        nodes
+        self.nodes
+            .values()
+            .filter(|node| {
+                if only_available && !node.available {
+                    return false;
+                }
+                if with_services && node.services_len() <= 0 {
+                    return false;
+                }
+                return true;
+            })
+            .collect()
+    }
+    pub fn list_mut(&mut self, only_available: bool, with_services: bool) -> Vec<&mut Node> {
+        self.nodes
+            .values_mut()
+            .filter(|node| {
+                if only_available && !node.available {
+                    return false;
+                }
+                if with_services && node.services_len() <= 0 {
+                    return false;
+                }
+                return true;
+            })
+            .collect()
     }
     pub fn nodes_vec(&self) -> Vec<&Node> {
         self.nodes.values().collect()
+    }
+    pub fn nodes_vec_mut(&mut self) -> Vec<&mut Node> {
+        self.nodes.values_mut().collect()
     }
 }
 fn get_ip_list() -> Vec<IpAddr> {
