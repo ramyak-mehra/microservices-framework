@@ -1,6 +1,6 @@
 use super::*;
 
-#[derive(Clone)]
+#[derive(PartialEq, Eq, Clone)]
 pub struct ActionEndpoint {
     endpoint: Endpoint,
     action: Action,
@@ -41,5 +41,8 @@ impl ActionEndpoint {
     }
     pub fn id(&self) -> &str {
         &self.endpoint.id
+    }
+    pub fn service_name(&self) -> &str {
+        &self.endpoint.service.name
     }
 }

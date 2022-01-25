@@ -7,7 +7,7 @@ struct ActionCatalog {
     broker: Arc<Broker>,
     strategy: Strategy,
     logger: Arc<Logger>,
-    actions: HashMap<String, EndpointList>,
+    actions: ActionsMap,
 }
 
 impl ActionCatalog {
