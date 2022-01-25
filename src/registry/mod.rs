@@ -2,15 +2,20 @@ pub mod action_catalog;
 pub mod action_endpoint;
 pub mod endpoint_list;
 pub mod event_endpoint;
+pub mod node;
+pub mod node_catalog;
 pub use std::sync::Arc;
 
 pub use action_endpoint::ActionEndpoint;
 pub use endpoint_list::EndpointList;
+pub use node::{Client, Node};
 // pub use event_endpoint::EventEndpoint;
 
 pub struct Logger {}
 pub struct Broker {
     node_id: String,
+    instance_id: String,
+    moleculer_version: String,
 }
 pub struct Registry {
     logger: Arc<Logger>,
@@ -20,11 +25,8 @@ impl Registry {
         &self.logger
     }
 }
-#[derive(PartialEq, Eq)]
-pub struct Node {
-    id: String,
-}
-#[derive(PartialEq, Eq)]
+
+#[derive(PartialEq, Eq, Clone)]
 pub struct ServiceItem {
     name: String,
 }
@@ -66,8 +68,8 @@ impl Endpoint {
         node: Arc<Node>,
         service: Arc<ServiceItem>,
     ) -> Self {
-        let local = node.id == broker.node_id;
-        let id = node.id.clone();
+        let local = node.id() == broker.node_id;
+        let id = node.id().to_string();
         Self {
             registry,
             broker,

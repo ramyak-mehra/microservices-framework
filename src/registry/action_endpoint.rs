@@ -4,7 +4,7 @@ use super::*;
 pub struct ActionEndpoint {
     endpoint: Endpoint,
     action: Action,
-    name: String,
+    pub name: String,
 }
 impl ActionEndpoint {
     pub fn new(
@@ -39,10 +39,7 @@ impl ActionEndpoint {
     pub fn service(&self) -> &ServiceItem {
         &self.endpoint.service
     }
-    pub fn name(&self) -> &String {
-        &self.name
-    }
-    pub fn id(&self) -> &String {
+    pub fn id(&self) -> &str {
         &self.endpoint.id
     }
 }
