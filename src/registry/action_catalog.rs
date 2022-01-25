@@ -1,8 +1,8 @@
-use std::{collections::HashMap};
+use std::collections::HashMap;
 
 use super::*;
 
-pub struct ActionCatalog {
+struct ActionCatalog {
     registry: Arc<Registry>,
     broker: Arc<Broker>,
     strategy: Strategy,
@@ -41,10 +41,10 @@ impl ActionCatalog {
             }
         }
     }
-    fn get(&self, action_name: &String) -> Option<&EndpointList> {
+    fn get(&self, action_name: &str) -> Option<&EndpointList> {
         self.actions.get(action_name)
     }
-    fn is_available(&self, action_name: &String) -> bool {
+    fn is_available(&self, action_name: &str) -> bool {
         match self.actions.get(action_name) {
             Some(el) => el.has_available(),
             None => false,
@@ -56,7 +56,7 @@ impl ActionCatalog {
             el.remove_by_service(service);
         });
     }
-    fn remove(&mut self, action_name: &String, node_id: &String) {
+    fn remove(&mut self, action_name: &str, node_id: &str) {
         let list = self.actions.get_mut(action_name);
         if let Some(el) = list {
             el.remove_by_node_id(node_id);

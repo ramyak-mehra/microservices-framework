@@ -103,12 +103,12 @@ impl EndpointList {
     fn count(&self) -> usize {
         self.endpoints.len()
     }
-    fn get_endpoint_by_node_id(&self, node_id: &String) -> Option<&ActionEndpoint> {
+    fn get_endpoint_by_node_id(&self, node_id: &str) -> Option<&ActionEndpoint> {
         self.endpoints
             .iter()
             .find(|e| e.id() == node_id && e.is_available())
     }
-    fn has_node_id(&self, node_id: &String) -> bool {
+    fn has_node_id(&self, node_id: &str) -> bool {
         match self.endpoints.iter().find(|e| e.id() == node_id) {
             Some(_) => true,
             None => false,
@@ -122,7 +122,7 @@ impl EndpointList {
         self.update_local_endpoints();
     }
 
-    pub fn remove_by_node_id(&mut self, node_id: &String) {
+    pub fn remove_by_node_id(&mut self, node_id: &str) {
         self.endpoints.retain(|ep| {
             let delete = ep.id() == node_id;
             !delete
