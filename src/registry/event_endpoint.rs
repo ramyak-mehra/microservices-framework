@@ -1,27 +1,48 @@
-// use super::{Broker, Endpoint, Node, Registry, ServiceItem, Event};
+use super::*;
 
-// pub struct EventEndpoint {
-//     endpoint: Endpoint,
-//     event: Event,
-// }
-// impl EventEndpoint {
-//     fn new(
-//         registry: <Registry>,
-//         broker: Broker,
-//         node: Node,
-//         service: ServiceItem,
-//         event: Event,
-//     ) -> Self {
-//         let endpoint = Endpoint::new(registry, broker, node, service);
+#[derive(Clone)]
+pub struct EventEndpoint {
+    endpoint: Endpoint,
+    event: Event,
+}
 
-//         Self { event, endpoint }
-//     }
+impl EndpointTrait for EventEndpoint {
+    type Data = Event;
+    fn update(&mut self, data: Self::Data) {
+        self.event = data;
+    }
+    fn new(
+        registry: Arc<Registry>,
+        broker: Arc<Broker>,
+        node: Arc<Node>,
+        service: Arc<ServiceItem>,
+        data: Self::Data,
+    ) -> Self {
+        let endpoint = Endpoint::new(registry, broker, node, service);
+        Self {
+            endpoint,
 
-//     fn is_available(&self) -> bool {
-//         self.endpoint.state
-//     }
+            event: data,
+        }
+    }
 
-//     fn update(&mut self, event:  Event) {
-//         self.event = event
-//     }
-// }
+    fn node(&self) -> &Node {
+        &self.endpoint.node
+    }
+
+    fn service(&self) -> &ServiceItem {
+        &self.endpoint.service
+    }
+    fn is_local(&self) -> bool {
+        self.endpoint.local
+    }
+    fn is_available(&self) -> bool {
+        self.endpoint.state
+    }
+    fn id(&self) -> &str {
+        &self.endpoint.id
+    }
+    fn service_name(&self) -> &str {
+        &self.endpoint.service.name
+    }
+}
