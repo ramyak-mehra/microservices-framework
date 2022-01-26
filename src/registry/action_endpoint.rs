@@ -6,43 +6,45 @@ pub struct ActionEndpoint {
     action: Action,
     pub name: String,
 }
-impl ActionEndpoint {
-    pub fn new(
+
+impl EndpointTrait for ActionEndpoint {
+    type Data = Action;
+    fn update(&mut self, data: Self::Data) {
+        self.action = data;
+    }
+    fn new(
         registry: Arc<Registry>,
         broker: Arc<Broker>,
         node: Arc<Node>,
         service: Arc<ServiceItem>,
-        action: Action,
+        data: Self::Data,
     ) -> Self {
         let endpoint = Endpoint::new(registry, broker, node, service);
-        let name = format!("{}:{}", endpoint.id, action.name);
-        ActionEndpoint {
-            action,
+        let name = format!("{}:{}", endpoint.id, data.name);
+        Self {
             endpoint,
             name,
+            action: data,
         }
     }
 
-    pub fn is_available(&self) -> bool {
-        self.endpoint.state
-    }
-    pub fn is_local(&self) -> bool {
-        self.endpoint.local
-    }
-    pub fn update(&mut self, action: Action) {
-        self.action = action
-    }
-    pub fn node(&self) -> &Node {
+    fn node(&self) -> &Node {
         &self.endpoint.node
     }
 
-    pub fn service(&self) -> &ServiceItem {
+    fn service(&self) -> &ServiceItem {
         &self.endpoint.service
     }
-    pub fn id(&self) -> &str {
+    fn is_local(&self) -> bool {
+        self.endpoint.local
+    }
+    fn is_available(&self) -> bool {
+        self.endpoint.state
+    }
+    fn id(&self) -> &str {
         &self.endpoint.id
     }
-    pub fn service_name(&self) -> &str {
+    fn service_name(&self) -> &str {
         &self.endpoint.service.name
     }
 }
