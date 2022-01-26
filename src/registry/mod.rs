@@ -10,12 +10,13 @@ use std::collections::HashMap;
 pub use std::sync::Arc;
 
 pub use action_endpoint::ActionEndpoint;
+use event_endpoint::EventEndpoint;
 pub use endpoint_list::EndpointList;
 pub use node::{Client, Node};
 use service_item::ServiceItem;
 // pub use event_endpoint::EventEndpoint;
 
-type ActionsMap = HashMap<String, EndpointList>;
+type ActionsMap = HashMap<String, EndpointList<ActionEndpoint>>;
 
 #[derive(PartialEq, Eq)]
 pub struct Logger {}
@@ -42,17 +43,30 @@ trait FnType {}
 pub struct Action {
     name: String,
 }
-impl FnType for Action {}
-struct Event {}
+
+#[derive(PartialEq, Eq,Clone)]
+pub struct Event {}
 impl FnType for Event {}
 pub struct Strategy {}
 
-trait EndpointTrait {
-    fn node(&self) -> Node;
-    fn service(&self) -> ServiceItem;
-    fn update<F>(&mut self, data: F)
-    where
-        F: FnType;
+///Endpoint trait for endpoint list
+pub trait EndpointTrait {
+    ///Data is eiter an Action struct or Event structs
+    type Data;
+    fn new(
+        registry: Arc<Registry>,
+        broker: Arc<Broker>,
+        node: Arc<Node>,
+        service: Arc<ServiceItem>,
+        data: Self::Data,
+    ) -> Self;
+    fn node(&self) -> &Node;
+    fn service(&self) -> &ServiceItem;
+    fn update(&mut self, data: Self::Data);
+    fn is_local(&self) -> bool;
+    fn is_available(&self)->bool;
+    fn id(&self)->&str;
+    fn service_name(&self)->&str;
 }
 
 #[derive(PartialEq, Eq, Clone)]

@@ -41,7 +41,7 @@ impl ActionCatalog {
             }
         }
     }
-    fn get(&self, action_name: &str) -> Option<&EndpointList> {
+    fn get(&self, action_name: &str) -> Option<&EndpointList<ActionEndpoint>> {
         self.actions.get(action_name)
     }
     fn is_available(&self, action_name: &str) -> bool {

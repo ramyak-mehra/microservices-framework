@@ -2,17 +2,17 @@ use std::sync::Arc;
 
 use super::*;
 #[derive(PartialEq, Eq, Clone)]
-pub struct EndpointList {
+ pub struct EndpointList<T: EndpointTrait + Clone> {
     registry: Arc<Registry>,
     broker: Arc<Broker>,
-   pub name: String,
+    pub name: String,
     group: Option<String>,
     internal: bool,
-    endpoints: Vec<ActionEndpoint>,
-    local_endpoints: Vec<ActionEndpoint>,
+    endpoints: Vec<T>,
+    local_endpoints: Vec<T>,
 }
 
-impl EndpointList {
+impl<T:EndpointTrait + Clone> EndpointList<T> {
     pub fn new(
         registry: Arc<Registry>,
         broker: Arc<Broker>,
@@ -34,11 +34,11 @@ impl EndpointList {
         }
     }
 
-    pub fn add(&mut self, node: Arc<Node>, service: Arc<ServiceItem>, data: Action) {
+    pub fn add(&mut self, node: Arc<Node>, service: Arc<ServiceItem>, data:T::Data ) {
         let entry = self
             .endpoints
             .iter_mut()
-            .find(|x| x.node() == &*node && x.service_name() == service.name);
+            .find(|x| x.node() == &*node && x.service().name == service.name);
 
         match entry {
             Some(found) => {
@@ -47,7 +47,8 @@ impl EndpointList {
             }
             None => {}
         }
-        let ep = ActionEndpoint::new(
+
+        let ep = T::new(
             Arc::clone(&self.registry),
             Arc::clone(&self.broker),
             Arc::clone(&node),
@@ -60,18 +61,18 @@ impl EndpointList {
             self.local_endpoints.push(ep)
         }
     }
-    fn get_first(&self) -> Option<&ActionEndpoint> {
+    fn get_first(&self) -> Option<&T> {
         self.endpoints.get(0)
     }
 
-    fn select(&self) -> &ActionEndpoint {
+    fn select(&self) -> &T {
         todo!()
     }
 
-    fn next(&self) -> &ActionEndpoint {
+    fn next(&self) -> &T {
         todo!()
     }
-    fn next_local(&self) -> &ActionEndpoint {
+    fn next_local(&self) -> &T {
         todo!()
     }
 
@@ -88,7 +89,7 @@ impl EndpointList {
     }
 
     fn update_local_endpoints(&mut self) {
-        let mut local: Vec<ActionEndpoint> = Vec::new();
+        let mut local: Vec<T> = Vec::new();
         for ep in &self.endpoints {
             if ep.is_local() {
                 let e = ep.clone();
@@ -102,7 +103,7 @@ impl EndpointList {
     fn count(&self) -> usize {
         self.endpoints.len()
     }
-    fn get_endpoint_by_node_id(&self, node_id: &str) -> Option<&ActionEndpoint> {
+    fn get_endpoint_by_node_id(&self, node_id: &str) -> Option<&T> {
         self.endpoints
             .iter()
             .find(|e| e.id() == node_id && e.is_available())

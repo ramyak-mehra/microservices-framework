@@ -43,12 +43,12 @@ impl ServiceItem {
         todo!()
     }
     ///Add action to service
-    pub fn add_action(&mut self, action: EndpointList) {
+    pub fn add_action(&mut self, action: EndpointList<ActionEndpoint>) {
         let name = action.name.clone();
         self.actions.insert(name, action);
         todo!("Decide if we want an arc of action or make a copy of that actions")
     }
-    pub fn add_event(&mut self, event: EndpointList) {
+    pub fn add_event(&mut self, event: EndpointList<EventEndpoint>) {
         todo!("Implement the events map")
     }
 }
