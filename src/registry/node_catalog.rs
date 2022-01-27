@@ -2,6 +2,7 @@ use std::{collections::HashMap, net::IpAddr, sync::Arc};
 
 use super::{node, Broker, Client, Logger, Node, Registry};
 
+#[derive(PartialEq, Eq)]
 pub struct NodeCatalog {
     registry: Arc<Registry>,
     broker: Arc<Broker>,
@@ -11,8 +12,8 @@ pub struct NodeCatalog {
 }
 impl NodeCatalog {
     pub fn new(registry: Arc<Registry>, broker: Arc<Broker>) -> Self {
-        let logger = registry.logger();
-        let logger = Arc::clone(logger);
+        let logger = &registry.logger;
+        let logger = Arc::clone(&logger);
         Self {
             broker,
             logger,

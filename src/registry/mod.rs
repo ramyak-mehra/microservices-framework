@@ -4,15 +4,22 @@ pub mod endpoint_list;
 pub mod event_endpoint;
 pub mod node;
 pub mod node_catalog;
+pub mod registry;
 pub mod service_catalog;
 pub mod service_item;
-use std::collections::HashMap;
-pub use std::sync::Arc;
 
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use crate::strategies::Strategy;
+use action_catalog::ActionCatalog;
 pub use action_endpoint::ActionEndpoint;
-use event_endpoint::EventEndpoint;
 pub use endpoint_list::EndpointList;
+pub use event_endpoint::EventEndpoint;
 pub use node::{Client, Node};
+use node_catalog::NodeCatalog;
+pub use registry::Registry;
+use service_catalog::ServiceCatalog;
 use service_item::ServiceItem;
 // pub use event_endpoint::EventEndpoint;
 
@@ -25,16 +32,7 @@ pub struct Broker {
     node_id: String,
     instance_id: String,
     moleculer_version: String,
-}
-
-#[derive(PartialEq, Eq)]
-pub struct Registry {
     logger: Arc<Logger>,
-}
-impl Registry {
-    pub fn logger(&self) -> &Arc<Logger> {
-        &self.logger
-    }
 }
 
 trait FnType {}
@@ -42,12 +40,19 @@ trait FnType {}
 #[derive(PartialEq, Eq, Clone)]
 pub struct Action {
     name: String,
+    visibility: Visibility,
 }
 
-#[derive(PartialEq, Eq,Clone)]
+#[derive(PartialEq, Eq, Clone)]
+enum Visibility {
+    Published,
+    Public,
+    Protected,
+    Private,
+}
+#[derive(PartialEq, Eq, Clone)]
 pub struct Event {}
 impl FnType for Event {}
-pub struct Strategy {}
 
 ///Endpoint trait for endpoint list
 pub trait EndpointTrait {
@@ -64,9 +69,9 @@ pub trait EndpointTrait {
     fn service(&self) -> &ServiceItem;
     fn update(&mut self, data: Self::Data);
     fn is_local(&self) -> bool;
-    fn is_available(&self)->bool;
-    fn id(&self)->&str;
-    fn service_name(&self)->&str;
+    fn is_available(&self) -> bool;
+    fn id(&self) -> &str;
+    fn service_name(&self) -> &str;
 }
 
 #[derive(PartialEq, Eq, Clone)]
@@ -114,4 +119,8 @@ pub struct Service {
     settings ,
     metadata
     */
+}
+#[derive(PartialEq, Eq)]
+pub struct Opts<T: Strategy> {
+    strategy: T,
 }

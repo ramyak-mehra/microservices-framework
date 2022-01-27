@@ -9,7 +9,7 @@ pub struct Node {
     pub id: String,
     instance_id: Option<String>,
     pub available: bool,
-    local: bool,
+    pub local: bool,
     last_heartbeat_time: Duration,
     /* feields that need to be added later.
     config

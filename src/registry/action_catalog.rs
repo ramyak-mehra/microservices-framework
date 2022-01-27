@@ -2,22 +2,22 @@ use std::collections::HashMap;
 
 use super::*;
 
-struct ActionCatalog {
+#[derive(PartialEq, Eq)]
+pub struct ActionCatalog {
     registry: Arc<Registry>,
     broker: Arc<Broker>,
-    strategy: Strategy,
+
     logger: Arc<Logger>,
     actions: ActionsMap,
 }
 
 impl ActionCatalog {
-    fn new(registry: Arc<Registry>, broker: Arc<Broker>, strategy: Strategy) -> Self {
-        let logger = registry.logger();
-        let logger = Arc::clone(logger);
+    pub fn new(registry: Arc<Registry>, broker: Arc<Broker>) -> Self {
+        let logger = &registry.logger;
+        let logger = Arc::clone(&logger);
 
         Self {
             registry,
-            strategy,
             broker,
             logger,
             actions: HashMap::new(),
@@ -41,7 +41,7 @@ impl ActionCatalog {
             }
         }
     }
-    fn get(&self, action_name: &str) -> Option<&EndpointList<ActionEndpoint>> {
+    pub fn get(&self, action_name: &str) -> Option<&EndpointList<ActionEndpoint>> {
         self.actions.get(action_name)
     }
     fn is_available(&self, action_name: &str) -> bool {
@@ -56,7 +56,7 @@ impl ActionCatalog {
             el.remove_by_service(service);
         });
     }
-    fn remove(&mut self, action_name: &str, node_id: &str) {
+    pub fn remove(&mut self, action_name: &str, node_id: &str) {
         let list = self.actions.get_mut(action_name);
         if let Some(el) = list {
             el.remove_by_node_id(node_id);
