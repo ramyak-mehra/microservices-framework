@@ -1,5 +1,6 @@
 use super::*;
 
+#[derive(PartialEq, Eq)]
 pub struct ServiceCatalog {
     registry: Arc<Registry>,
     broker: Arc<Broker>,
@@ -51,7 +52,7 @@ impl ServiceCatalog {
         todo!()
     }
     //remove all endpoints by node_id.
-    pub fn remove_by_node_id(&mut self, node_id: &str) {
+    pub fn remove_all_by_node_id(&mut self, node_id: &str) {
         let services: Vec<&ServiceItem> = self
             .services
             .iter()
@@ -66,9 +67,9 @@ impl ServiceCatalog {
         todo!("updat the service")
     }
 
-    pub fn remove(&mut self, full_name: &str, node_id: Option<&str>) {
+    pub fn remove(&mut self, full_name: &str, node_id: &str) {
         self.services.retain(|svc| {
-            if svc.equals(full_name, node_id) {
+            if svc.equals(full_name, Some(node_id)) {
                 todo!("remove actions and events in registry");
 
                 return false;

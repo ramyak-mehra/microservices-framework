@@ -103,7 +103,7 @@ impl<T:EndpointTrait + Clone> EndpointList<T> {
     fn count(&self) -> usize {
         self.endpoints.len()
     }
-    fn get_endpoint_by_node_id(&self, node_id: &str) -> Option<&T> {
+   pub fn get_endpoint_by_node_id(&self, node_id: &str) -> Option<&T> {
         self.endpoints
             .iter()
             .find(|e| e.id() == node_id && e.is_available())
