@@ -11,6 +11,7 @@ pub mod service_item;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use super::service::Service;
 use crate::strategies::Strategy;
 use action_catalog::ActionCatalog;
 pub use action_endpoint::ActionEndpoint;
@@ -39,8 +40,25 @@ trait FnType {}
 
 #[derive(PartialEq, Eq, Clone)]
 pub struct Action {
-    name: String,
+    pub name: String,
     visibility: Visibility,
+    handler: fn(),
+    service: Option<Service>,
+}
+
+impl Action {
+    pub fn new(name: String, handler: fn()) -> Self {
+        Self {
+            name,
+            visibility: Visibility::Protected,
+            handler,
+            service: None,
+        }
+    }
+    pub fn set_service(mut self , service : Service)->Action{
+        self.service = Some(service);
+        self
+    }
 }
 
 #[derive(PartialEq, Eq, Clone)]
@@ -111,15 +129,6 @@ enum EndpointType {
     Event,
 }
 
-pub struct Service {
-    name: String,
-    full_name: String,
-    version: String,
-    /*
-    settings ,
-    metadata
-    */
-}
 #[derive(PartialEq, Eq)]
 pub struct Opts<T: Strategy> {
     strategy: T,
