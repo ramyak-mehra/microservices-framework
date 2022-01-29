@@ -4,7 +4,7 @@ use super::*;
 #[derive(PartialEq, Eq, Clone)]
  pub struct EndpointList<T: EndpointTrait + Clone> {
     registry: Arc<Registry>,
-    broker: Arc<Broker>,
+    broker: Arc<ServiceBroker>,
     pub name: String,
     group: Option<String>,
     internal: bool,
@@ -15,7 +15,7 @@ use super::*;
 impl<T:EndpointTrait + Clone> EndpointList<T> {
     pub fn new(
         registry: Arc<Registry>,
-        broker: Arc<Broker>,
+        broker: Arc<ServiceBroker>,
         name: String,
         group: Option<String>,
     ) -> Self {

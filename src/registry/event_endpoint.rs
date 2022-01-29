@@ -13,7 +13,7 @@ impl EndpointTrait for EventEndpoint {
     }
     fn new(
         registry: Arc<Registry>,
-        broker: Arc<Broker>,
+        broker: Arc<ServiceBroker>,
         node: Arc<Node>,
         service: Arc<ServiceItem>,
         data: Self::Data,

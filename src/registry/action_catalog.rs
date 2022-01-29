@@ -5,14 +5,14 @@ use super::*;
 #[derive(PartialEq, Eq)]
 pub struct ActionCatalog {
     registry: Arc<Registry>,
-    broker: Arc<Broker>,
+    broker: Arc<ServiceBroker>,
 
     logger: Arc<Logger>,
     actions: ActionsMap,
 }
 
 impl ActionCatalog {
-    pub fn new(registry: Arc<Registry>, broker: Arc<Broker>) -> Self {
+    pub fn new(registry: Arc<Registry>, broker: Arc<ServiceBroker>) -> Self {
         let logger = &registry.logger;
         let logger = Arc::clone(&logger);
 

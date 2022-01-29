@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 struct RoundRobinStrategy {
     registry: Arc<Registry>,
-    broker: Arc<Broker>,
+    broker: Arc<ServiceBroker>,
     opts: StrategyOpts,
     counter: usize,
 }
@@ -12,7 +12,7 @@ impl RoundRobinStrategy {
     // fn new() -> Self {}
 }
 impl Strategy for RoundRobinStrategy {
-    fn new(registry: Arc<Registry>, broker: Arc<Broker>, opts: StrategyOpts) -> Self {
+    fn new(registry: Arc<Registry>, broker: Arc<ServiceBroker>, opts: StrategyOpts) -> Self {
         Self {
             broker,
             registry,
