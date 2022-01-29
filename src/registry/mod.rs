@@ -29,7 +29,7 @@ type ActionsMap = HashMap<String, EndpointList<ActionEndpoint>>;
 #[derive(PartialEq, Eq)]
 pub struct Logger {}
 #[derive(PartialEq, Eq)]
-pub struct Broker {
+pub struct ServiceBroker {
     node_id: String,
     instance_id: String,
     moleculer_version: String,
@@ -78,7 +78,7 @@ pub trait EndpointTrait {
     type Data;
     fn new(
         registry: Arc<Registry>,
-        broker: Arc<Broker>,
+        broker: Arc<ServiceBroker>,
         node: Arc<Node>,
         service: Arc<ServiceItem>,
         data: Self::Data,
@@ -95,7 +95,7 @@ pub trait EndpointTrait {
 #[derive(PartialEq, Eq, Clone)]
 struct Endpoint {
     registry: Arc<Registry>,
-    broker: Arc<Broker>,
+    broker: Arc<ServiceBroker>,
     node: Arc<Node>,
     service: Arc<ServiceItem>,
     state: bool,
@@ -106,7 +106,7 @@ struct Endpoint {
 impl Endpoint {
     fn new(
         registry: Arc<Registry>,
-        broker: Arc<Broker>,
+        broker: Arc<ServiceBroker>,
         node: Arc<Node>,
         service: Arc<ServiceItem>,
     ) -> Self {

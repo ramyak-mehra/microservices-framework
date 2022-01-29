@@ -2,7 +2,7 @@ use super::*;
 #[derive(PartialEq, Eq)]
 pub struct Registry {
     pub logger: Arc<Logger>,
-    broker: Arc<Broker>,
+    broker: Arc<ServiceBroker>,
     nodes: NodeCatalog,
     services: ServiceCatalog,
     actions: ActionCatalog,
@@ -16,7 +16,7 @@ pub struct Registry {
 }
 
 impl Registry {
-    pub fn new(broker: Arc<Broker>) -> Self {
+    pub fn new(broker: Arc<ServiceBroker>) -> Self {
         let logger = &broker.logger;
         let logger = Arc::clone(&logger);
         todo!()

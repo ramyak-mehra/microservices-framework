@@ -1,17 +1,17 @@
 use std::{collections::HashMap, net::IpAddr, sync::Arc};
 
-use super::{node, Broker, Client, Logger, Node, Registry};
+use super::{node, ServiceBroker, Client, Logger, Node, Registry};
 
 #[derive(PartialEq, Eq)]
 pub struct NodeCatalog {
     registry: Arc<Registry>,
-    broker: Arc<Broker>,
+    broker: Arc<ServiceBroker>,
     logger: Arc<Logger>,
     nodes: HashMap<String, Node>,
     local_node: Option<Node>,
 }
 impl NodeCatalog {
-    pub fn new(registry: Arc<Registry>, broker: Arc<Broker>) -> Self {
+    pub fn new(registry: Arc<Registry>, broker: Arc<ServiceBroker>) -> Self {
         let logger = &registry.logger;
         let logger = Arc::clone(&logger);
         Self {

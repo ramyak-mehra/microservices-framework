@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
-use crate::registry::{ActionEndpoint, Broker, Registry , Opts};
+use crate::registry::{ActionEndpoint, ServiceBroker, Registry , Opts};
 mod round_robin;
 
 
 pub trait Strategy {
-    fn new(registry: Arc<Registry>, broker: Arc<Broker>, opts: StrategyOpts) -> Self;
+    fn new(registry: Arc<Registry>, broker: Arc<ServiceBroker>, opts: StrategyOpts) -> Self;
     fn select<'a>(
         &mut self,
         list: Vec<&'a ActionEndpoint>,
