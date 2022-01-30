@@ -35,7 +35,7 @@ impl Registry {
     fn update_metrics(&self) {
         todo!("update metrics")
     }
-    pub fn register_local_service(svc: Service) {
+    pub fn register_local_service(&mut self, svc: ServiceItem) {
         todo!("after service has been done")
     }
     pub fn register_services() {
@@ -72,7 +72,7 @@ impl Registry {
         }
         None
     }
-    fn unregister_service(&mut self, full_name: &str, node_id: Option<&str>) {
+    pub fn unregister_service(&mut self, full_name: &str, node_id: Option<&str>) {
         let id = match node_id {
             Some(node_id) => node_id.to_string(),
             None => self.broker.node_id.clone(),
@@ -117,16 +117,16 @@ impl Registry {
     fn get_node_list(&self, only_available: bool, with_services: bool) -> Vec<&Node> {
         self.nodes.list(only_available, with_services)
     }
-    fn get_services_list(&self)->Vec<&ServiceItem>{
+    fn get_services_list(&self) -> Vec<&ServiceItem> {
         todo!()
     }
-    fn get_actions_list(&self)->Vec<&ActionEndpoint>{
+    fn get_actions_list(&self) -> Vec<&ActionEndpoint> {
         todo!()
     }
-    fn get_event_list(&self)->Vec<&EventEndpoint>{
+    fn get_event_list(&self) -> Vec<&EventEndpoint> {
         todo!()
     }
-    fn get_node_raw_list(&self){
+    fn get_node_raw_list(&self) {
         todo!()
     }
 }

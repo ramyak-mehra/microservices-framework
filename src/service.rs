@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use chrono::Duration;
 
-use crate::registry::{Action, Logger, Event};
+use crate::registry::{Action, Event, Logger};
 
 #[derive(PartialEq, Eq, Clone)]
 pub struct Service {
@@ -14,8 +14,8 @@ pub struct Service {
     schema: Schema,
     original_schema: Option<Schema>,
     metadata: HashMap<String, String>,
-    actions : HashMap<String , Action>,
-    events : HashMap<String , Event>
+    actions: HashMap<String, Action>,
+    events: HashMap<String, Event>,
 }
 #[derive(PartialEq, Eq, Clone)]
 struct Schema {
@@ -75,33 +75,25 @@ impl Service {
         //TODO:
         //self.schema = schema;
         let version = self.settings.get("$noVersionPrefix");
-    
+
         self.full_name = Service::get_versioned_full_name(&self.name, version);
         //TODO: get the logger from the broker.
-        //self.logger = 
-        
-
+        //self.logger =
 
         //TODO:register methods.
 
-
-        
-
-
         todo!("add service specification")
-
-
     }
 
-    fn init() {
+    pub fn init(&mut self) {
         todo!("call broker to initialise the service and call the init method of service")
     }
 
-    fn start() {
+    pub fn start(&mut self) {
         todo!("call the broker to start the services and call the start method of services")
     }
 
-    fn stop() {
+    pub fn stop(&mut self) {
         todo!("call the broker to stop the service and call the stop method of service")
     }
 
