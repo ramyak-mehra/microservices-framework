@@ -4,35 +4,30 @@ use super::{node, ServiceBroker, Client, Logger, Node, Registry};
 
 #[derive(PartialEq, Eq)]
 pub struct NodeCatalog {
-    registry: Arc<Registry>,
-    broker: Arc<ServiceBroker>,
-    logger: Arc<Logger>,
+ 
     nodes: HashMap<String, Node>,
     local_node: Option<Node>,
 }
 impl NodeCatalog {
-    pub fn new(registry: Arc<Registry>, broker: Arc<ServiceBroker>) -> Self {
-        let logger = &registry.logger;
-        let logger = Arc::clone(&logger);
+    pub fn new() -> Self {
+      
         Self {
-            broker,
-            logger,
-            registry,
+      
             nodes: HashMap::new(),
             local_node: None,
         }
     }
     ///Create a local node
-    fn create_local_node(&mut self) -> Node {
+    fn create_local_node(&mut self , version : String , node_id : String , instance_id : String) -> Node {
         let client = Client {
             client_type: "rust".to_string(),
             lang_version: "1.56.1".to_string(),
-            version: self.broker.moleculer_version.clone(),
+            version: version
         };
-        let node = Node::new(self.broker.node_id.clone())
+        let node = Node::new(node_id)
             .set_local(true)
             .set_ip_list(get_ip_list())
-            .set_instance_id(self.broker.instance_id.clone())
+            .set_instance_id(instance_id)
             .set_hostname(get_hostname())
             .set_seq(1)
             .set_client(client);

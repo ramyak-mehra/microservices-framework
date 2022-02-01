@@ -4,7 +4,7 @@ use super::*;
 pub struct ServiceItem {
     pub name: String,
     pub node: Arc<Node>,
-    local: bool,
+    pub local: bool,
     full_name: String,
     version: String,
     actions: ActionsMap,

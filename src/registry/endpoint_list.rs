@@ -2,9 +2,7 @@ use std::sync::Arc;
 
 use super::*;
 #[derive(PartialEq, Eq, Clone)]
- pub struct EndpointList<T: EndpointTrait + Clone> {
-    registry: Arc<Registry>,
-    broker: Arc<ServiceBroker>,
+pub struct EndpointList<T: EndpointTrait + Clone> {
     pub name: String,
     group: Option<String>,
     internal: bool,
@@ -12,20 +10,13 @@ use super::*;
     local_endpoints: Vec<T>,
 }
 
-impl<T:EndpointTrait + Clone> EndpointList<T> {
-    pub fn new(
-        registry: Arc<Registry>,
-        broker: Arc<ServiceBroker>,
-        name: String,
-        group: Option<String>,
-    ) -> Self {
+impl<T: EndpointTrait + Clone> EndpointList<T> {
+    pub fn new(name: String, group: Option<String>) -> Self {
         let internal = name.starts_with("$");
         let endpoints = Vec::new();
         let local_endpoints = Vec::new();
 
         Self {
-            registry,
-            broker,
             name,
             group,
             endpoints,
@@ -34,7 +25,7 @@ impl<T:EndpointTrait + Clone> EndpointList<T> {
         }
     }
 
-    pub fn add(&mut self, node: Arc<Node>, service: Arc<ServiceItem>, data:T::Data ) {
+    pub fn add(&mut self, node: Arc<Node>, service: Arc<ServiceItem>, data: T::Data) {
         let entry = self
             .endpoints
             .iter_mut()
@@ -48,13 +39,7 @@ impl<T:EndpointTrait + Clone> EndpointList<T> {
             None => {}
         }
 
-        let ep = T::new(
-            Arc::clone(&self.registry),
-            Arc::clone(&self.broker),
-            Arc::clone(&node),
-            Arc::clone(&service),
-            data,
-        );
+        let ep = T::new(Arc::clone(&node), Arc::clone(&service), data);
 
         self.endpoints.push(ep.clone());
         if ep.is_local() {
@@ -103,7 +88,7 @@ impl<T:EndpointTrait + Clone> EndpointList<T> {
     fn count(&self) -> usize {
         self.endpoints.len()
     }
-   pub fn get_endpoint_by_node_id(&self, node_id: &str) -> Option<&T> {
+    pub fn get_endpoint_by_node_id(&self, node_id: &str) -> Option<&T> {
         self.endpoints
             .iter()
             .find(|e| e.id() == node_id && e.is_available())
