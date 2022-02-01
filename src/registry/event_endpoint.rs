@@ -11,14 +11,8 @@ impl EndpointTrait for EventEndpoint {
     fn update(&mut self, data: Self::Data) {
         self.event = data;
     }
-    fn new(
-        registry: Arc<Registry>,
-        broker: Arc<ServiceBroker>,
-        node: Arc<Node>,
-        service: Arc<ServiceItem>,
-        data: Self::Data,
-    ) -> Self {
-        let endpoint = Endpoint::new(registry, broker, node, service);
+    fn new(node: Arc<Node>, service: Arc<ServiceItem>, data: Self::Data) -> Self {
+        let endpoint = Endpoint::new(node, service);
         Self {
             endpoint,
 

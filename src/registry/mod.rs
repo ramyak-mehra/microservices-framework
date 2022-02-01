@@ -55,7 +55,7 @@ impl Action {
             service: None,
         }
     }
-    pub fn set_service(mut self , service : Service)->Action{
+    pub fn set_service(mut self, service: Service) -> Action {
         self.service = Some(service);
         self
     }
@@ -76,13 +76,7 @@ impl FnType for Event {}
 pub trait EndpointTrait {
     ///Data is eiter an Action struct or Event structs
     type Data;
-    fn new(
-        registry: Arc<Registry>,
-        broker: Arc<ServiceBroker>,
-        node: Arc<Node>,
-        service: Arc<ServiceItem>,
-        data: Self::Data,
-    ) -> Self;
+    fn new(node : Arc<Node> , service: Arc<ServiceItem>, data: Self::Data) -> Self;
     fn node(&self) -> &Node;
     fn service(&self) -> &ServiceItem;
     fn update(&mut self, data: Self::Data);
@@ -94,8 +88,6 @@ pub trait EndpointTrait {
 
 #[derive(PartialEq, Eq, Clone)]
 struct Endpoint {
-    registry: Arc<Registry>,
-    broker: Arc<ServiceBroker>,
     node: Arc<Node>,
     service: Arc<ServiceItem>,
     state: bool,
@@ -104,17 +96,10 @@ struct Endpoint {
 }
 
 impl Endpoint {
-    fn new(
-        registry: Arc<Registry>,
-        broker: Arc<ServiceBroker>,
-        node: Arc<Node>,
-        service: Arc<ServiceItem>,
-    ) -> Self {
-        let local = node.id == broker.node_id;
+    fn new(node: Arc<Node>, service: Arc<ServiceItem>) -> Self {
         let id = node.id.to_string();
+        let local = service.local;
         Self {
-            registry,
-            broker,
             node,
             service,
             state: true,

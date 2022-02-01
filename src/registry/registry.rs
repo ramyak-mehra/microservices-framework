@@ -1,8 +1,13 @@
+use crate::ServiceBrokerMessage;
+
 use super::*;
-#[derive(PartialEq, Eq)]
+use tokio::sync::mpsc::{Sender};
+
+
 pub struct Registry {
     pub logger: Arc<Logger>,
-    broker: Arc<ServiceBroker>,
+    broker_sender: Sender<ServiceBrokerMessage>,
+    broker : Arc<ServiceBroker>,
     nodes: NodeCatalog,
     services: ServiceCatalog,
     actions: ActionCatalog,

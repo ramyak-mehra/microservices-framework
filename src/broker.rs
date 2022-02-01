@@ -11,7 +11,7 @@ use chrono::{DateTime, Utc};
 use crate::{registry::service_item::ServiceItem, service, Registry, Service};
 
 struct ServiceBroker {
-    reciever: Receiver<ServiceBrokerAction>,
+    reciever: Receiver<ServiceBrokerMessage>,
     started: bool,
     namespace: Option<String>,
     metdata: HashMap<String, String>,
@@ -89,7 +89,9 @@ impl ServiceBroker {
     }
 }
 
-enum ServiceBrokerAction {}
+enum ServiceBrokerMessage {
+
+}
 
 fn remove_from_list<T: PartialEq + Eq>(list: &mut Vec<T>, value: &T) {
     list.retain(|t| {

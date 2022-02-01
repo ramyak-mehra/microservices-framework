@@ -2,20 +2,12 @@ use super::*;
 
 #[derive(PartialEq, Eq)]
 pub struct ServiceCatalog {
-    registry: Arc<Registry>,
-    broker: Arc<ServiceBroker>,
-    logger: Arc<Logger>,
     services: Vec<ServiceItem>,
 }
 
 impl ServiceCatalog {
-    pub fn new(registry: Arc<Registry>, broker: Arc<ServiceBroker>) -> Self {
-        let logger = &registry.logger;
-        let logger = Arc::clone(&logger);
+    pub fn new() -> Self {
         Self {
-            broker,
-            registry,
-            logger,
             services: Vec::new(),
         }
     }

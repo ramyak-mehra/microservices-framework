@@ -1,19 +1,16 @@
 use core::fmt;
 
-
-
-
 enum PacketType {
     Unknown,
     Event,
     Request,
     Response,
     Discover,
-    Info ,
-    Disconnect ,
+    Info,
+    Disconnect,
     Heartbeat,
     Ping,
-    Pong,
+    Pongs,
 }
 
 impl From<PacketType> for String {

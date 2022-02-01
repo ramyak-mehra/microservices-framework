@@ -12,14 +12,8 @@ impl EndpointTrait for ActionEndpoint {
     fn update(&mut self, data: Self::Data) {
         self.action = data;
     }
-    fn new(
-        registry: Arc<Registry>,
-        broker: Arc<ServiceBroker>,
-        node: Arc<Node>,
-        service: Arc<ServiceItem>,
-        data: Self::Data,
-    ) -> Self {
-        let endpoint = Endpoint::new(registry, broker, node, service);
+    fn new(node: Arc<Node>, service: Arc<ServiceItem>, data: Self::Data) -> Self {
+        let endpoint = Endpoint::new(node, service);
         let name = format!("{}:{}", endpoint.id, data.name);
         Self {
             endpoint,

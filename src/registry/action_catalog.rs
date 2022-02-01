@@ -4,22 +4,12 @@ use super::*;
 
 #[derive(PartialEq, Eq)]
 pub struct ActionCatalog {
-    registry: Arc<Registry>,
-    broker: Arc<ServiceBroker>,
-
-    logger: Arc<Logger>,
     actions: ActionsMap,
 }
 
 impl ActionCatalog {
-    pub fn new(registry: Arc<Registry>, broker: Arc<ServiceBroker>) -> Self {
-        let logger = &registry.logger;
-        let logger = Arc::clone(&logger);
-
+    pub fn new() -> Self {
         Self {
-            registry,
-            broker,
-            logger,
             actions: HashMap::new(),
         }
     }
@@ -29,12 +19,7 @@ impl ActionCatalog {
             Some(list) => list.add(node, service, action),
             None => {
                 let name = action.name.clone();
-                let mut list = EndpointList::new(
-                    Arc::clone(&self.registry),
-                    Arc::clone(&self.broker),
-                    name,
-                    None,
-                );
+                let mut list = EndpointList::new(name, None);
                 let name = action.name.clone();
                 list.add(node, service, action);
                 self.actions.insert(name, list);
