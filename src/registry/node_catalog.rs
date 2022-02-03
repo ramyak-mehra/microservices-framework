@@ -1,28 +1,27 @@
 use std::{collections::HashMap, net::IpAddr, sync::Arc};
 
-use super::{node, ServiceBroker, Client, Logger, Node, Registry};
+use std::sync::RwLock;
 
-#[derive(PartialEq, Eq)]
+use super::{node, Client, Logger, Node, Registry};
+
+
 pub struct NodeCatalog {
- 
     nodes: HashMap<String, Node>,
-    local_node: Option<Node>,
+    pub local_node: Option<Arc<Node>>,
 }
 impl NodeCatalog {
     pub fn new() -> Self {
-      
         Self {
-      
             nodes: HashMap::new(),
             local_node: None,
         }
     }
     ///Create a local node
-    fn create_local_node(&mut self , version : String , node_id : String , instance_id : String) -> Node {
+    fn create_local_node(&mut self, version: String, node_id: String, instance_id: String) -> Arc<Node> {
         let client = Client {
             client_type: "rust".to_string(),
             lang_version: "1.56.1".to_string(),
-            version: version
+            version: version,
         };
         let node = Node::new(node_id)
             .set_local(true)
@@ -33,8 +32,10 @@ impl NodeCatalog {
             .set_client(client);
 
         self.nodes.insert(node.id.to_string(), node.clone());
-        self.local_node = Some(node.clone());
-        return node;
+        let node = Arc::new(node);
+        let node_c = Arc::clone(&node);
+        self.local_node = Some(node);
+        return node_c;
         todo!()
         /*
         node.metadata = self.broker.metadata.clone()
@@ -119,3 +120,4 @@ fn get_ip_list() -> Vec<IpAddr> {
 fn get_hostname() -> String {
     todo!()
 }
+

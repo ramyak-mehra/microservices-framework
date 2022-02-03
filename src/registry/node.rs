@@ -1,6 +1,7 @@
-use std::net::IpAddr;
+use std::{net::IpAddr, sync::Arc};
 
 use chrono::Duration;
+use serde_json::Value;
 
 use super::ServiceItem;
 
@@ -21,12 +22,12 @@ pub struct Node {
     port: Option<u16>,
     hostname: Option<String>,
     udp_address: Option<IpAddr>,
+    pub raw_info: Option<Value>,
     /*
-    raw_info
     cpu
     cpuseq
     */
-    services: Vec<ServiceItem>,
+    pub services: Vec<Arc<ServiceItem>>,
     pub seq: usize,
     offline_since: Option<Duration>,
 }
@@ -39,6 +40,7 @@ impl Node {
             available: true,
             local: false,
             client: None,
+            raw_info: None,
             /*
             change this later with actual process uptime.
             */

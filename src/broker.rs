@@ -1,23 +1,25 @@
 use std::{
     any,
     collections::HashMap,
-    sync::mpsc::{Receiver, Sender},
+    sync::{mpsc::{Receiver, Sender}, Arc},
 };
 
 use anyhow::{bail, Error, Result};
 
 use chrono::{DateTime, Utc};
 
-use crate::{registry::service_item::ServiceItem, service, Registry, Service};
+use crate::{registry::{service_item::ServiceItem, Logger}, service, Registry, Service};
 
-struct ServiceBroker {
+pub struct ServiceBroker {
     reciever: Receiver<ServiceBrokerMessage>,
     started: bool,
     namespace: Option<String>,
     metdata: HashMap<String, String>,
-    node_id: String,
+   pub node_id: String,
     instance: String,
     services: Vec<Service>,
+  pub  transit : Option<Transit>,
+   pub logger : Arc<Logger>,
     /*
     local bus
     options
@@ -34,6 +36,8 @@ struct ServiceBroker {
     registry: Registry,
 }
 
+pub struct Transit{}
+
 impl ServiceBroker {
     fn start(&mut self) {
         let time = Utc::now();
@@ -43,7 +47,7 @@ impl ServiceBroker {
     fn add_local_service(&mut self, service: Service) {
         self.services.push(service);
     }
-    fn register_local_service(&mut self, service: ServiceItem) {
+    fn register_local_service(&mut self, service: Service) {
         self.registry.register_local_service(service);
     }
 
@@ -89,7 +93,7 @@ impl ServiceBroker {
     }
 }
 
-enum ServiceBrokerMessage {
+pub enum ServiceBrokerMessage {
 
 }
 

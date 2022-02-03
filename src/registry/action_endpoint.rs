@@ -3,7 +3,7 @@ use super::*;
 #[derive(PartialEq, Eq, Clone)]
 pub struct ActionEndpoint {
     endpoint: Endpoint,
-    action: Action,
+    pub action: Action,
     pub name: String,
 }
 

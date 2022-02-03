@@ -14,8 +14,8 @@ pub struct Service {
     schema: Schema,
     original_schema: Option<Schema>,
     metadata: HashMap<String, String>,
-    actions: HashMap<String, Action>,
-    events: HashMap<String, Event>,
+    pub actions: Option<Vec<Action>>,
+    pub events: Option<HashMap<String, Event>>,
 }
 #[derive(PartialEq, Eq, Clone)]
 struct Schema {
@@ -33,7 +33,10 @@ struct Schema {
 struct SchemaMixins {}
 
 #[derive(PartialEq, Eq, Clone)]
-struct SchemaActions {}
+pub struct SchemaActions {
+    name:String,
+    handler:fn()
+}
 
 #[derive(PartialEq, Eq, Clone)]
 struct SchemaEvents {}

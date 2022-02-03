@@ -5,7 +5,7 @@ pub struct ServiceItem {
     pub name: String,
     pub node: Arc<Node>,
     pub local: bool,
-    full_name: String,
+    pub full_name: String,
     version: String,
     actions: ActionsMap,
     /*
@@ -15,7 +15,7 @@ pub struct ServiceItem {
     */
 }
 impl ServiceItem {
-    pub fn new(node: Arc<Node>, service: Arc<Service>, local: bool) -> Self {
+    pub fn new(node: Arc<Node>, service: &Service, local: bool) -> Self {
         Self {
             node,
             local,
