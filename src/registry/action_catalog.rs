@@ -98,3 +98,30 @@ impl ActionCatalog {
         res
     }
 }
+enum ActionCatalogOp {
+    Add {
+        node: Arc<Node>,
+        service: Arc<ServiceItem>,
+        action: Action,
+    },
+    Remove{
+        name:String,
+        node_id:String
+    },
+}
+impl Absorb<ActionCatalogOp> for ActionCatalog {
+    fn absorb_first(&mut self, operation: &mut ActionCatalogOp, other: &Self) {
+        match operation{
+            ActionCatalogOp::Add { node, service, action } => {
+                self.add_concurrent(node, service, action.to_owned());
+            },
+            ActionCatalogOp::Remove { name, node_id } => {
+                self.remove(name, node_id);
+            },
+        }
+    }
+   
+    fn sync_with(&mut self, first: &Self) {
+    //    *self = *first
+    }
+}
