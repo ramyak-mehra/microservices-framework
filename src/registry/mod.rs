@@ -19,22 +19,27 @@ pub use endpoint_list::EndpointList;
 pub use event_endpoint::EventEndpoint;
 pub use node::{Client, Node};
 use node_catalog::NodeCatalog;
+use regex::Regex;
 pub use registry::Registry;
 use service_catalog::ServiceCatalog;
 use service_item::ServiceItem;
+use lazy_static::lazy_static;
 // pub use event_endpoint::EventEndpoint;
+
 
 type ActionsMap = HashMap<String, EndpointList<ActionEndpoint>>;
 
+fn get_internal_service_regex_match(text: &str) -> bool {
+    lazy_static! {
+        static ref RE: Regex =  Regex::new(r"^\$").unwrap();
+
+    }
+    RE.is_match(text)
+}
+
+
 #[derive(PartialEq, Eq)]
 pub struct Logger {}
-#[derive(PartialEq, Eq)]
-pub struct ServiceBroker {
-    node_id: String,
-    instance_id: String,
-    moleculer_version: String,
-    logger: Arc<Logger>,
-}
 
 trait FnType {}
 
@@ -76,7 +81,7 @@ impl FnType for Event {}
 pub trait EndpointTrait {
     ///Data is eiter an Action struct or Event structs
     type Data;
-    fn new(node : Arc<Node> , service: Arc<ServiceItem>, data: Self::Data) -> Self;
+    fn new(node: Arc<Node>, service: Arc<ServiceItem>, data: Self::Data) -> Self;
     fn node(&self) -> &Node;
     fn service(&self) -> &ServiceItem;
     fn update(&mut self, data: Self::Data);
@@ -117,4 +122,12 @@ enum EndpointType {
 #[derive(PartialEq, Eq)]
 pub struct Opts<T: Strategy> {
     strategy: T,
+}
+pub struct ListOptions {
+    only_local: bool,
+    only_available: bool,
+    skip_internal: bool,
+    with_actions: bool,
+    with_events: bool,
+    grouping: bool,
 }

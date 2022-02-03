@@ -6,7 +6,7 @@ pub struct EndpointList<T: EndpointTrait + Clone> {
     pub name: String,
     group: Option<String>,
     internal: bool,
-    endpoints: Vec<T>,
+    pub endpoints: Vec<T>,
     local_endpoints: Vec<T>,
 }
 
@@ -69,7 +69,7 @@ impl<T: EndpointTrait + Clone> EndpointList<T> {
         }
         return false;
     }
-    fn has_local(&self) -> bool {
+    pub fn has_local(&self) -> bool {
         self.local_endpoints.len() > 0
     }
 
@@ -85,7 +85,7 @@ impl<T: EndpointTrait + Clone> EndpointList<T> {
         drop(local);
     }
 
-    fn count(&self) -> usize {
+    pub fn count(&self) -> usize {
         self.endpoints.len()
     }
     pub fn get_endpoint_by_node_id(&self, node_id: &str) -> Option<&T> {

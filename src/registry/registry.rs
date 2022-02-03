@@ -1,16 +1,17 @@
-use crate::ServiceBrokerMessage;
+use crate::{ServiceBrokerMessage, service::SchemaActions, ServiceBroker};
 
 use super::*;
-use tokio::sync::mpsc::{Sender};
-
+use serde_json::Value;
+use tokio::sync::mpsc::Sender;
 
 pub struct Registry {
     pub logger: Arc<Logger>,
     broker_sender: Sender<ServiceBrokerMessage>,
-    broker : Arc<ServiceBroker>,
+    broker: Arc<ServiceBroker>,
     nodes: NodeCatalog,
     services: ServiceCatalog,
     actions: ActionCatalog,
+    
     /*
     metrics
     strategy factor
@@ -19,7 +20,6 @@ pub struct Registry {
     events
     */
 }
-
 impl Registry {
     pub fn new(broker: Arc<ServiceBroker>) -> Self {
         let logger = &broker.logger;
@@ -40,8 +40,26 @@ impl Registry {
     fn update_metrics(&self) {
         todo!("update metrics")
     }
-    pub fn register_local_service(&mut self, svc: ServiceItem) {
-        todo!("after service has been done")
+    pub fn register_local_service(&mut self, svc: Service) {
+        if !self
+            .services
+            .has(&svc.full_name, Some(&self.broker.node_id))
+        {
+            let service = self.services.add(
+                Arc::clone(&self.nodes.local_node.as_ref().unwrap()),
+                &svc,
+                true,
+            );
+            if let Some(actions) = svc.actions {
+                let local_node = Arc::clone(&self.nodes.local_node.as_ref().unwrap());
+                self.register_actions(local_node , Arc::clone(&service) , actions);
+            }
+            if let Some(events) = svc.events {
+                self.register_events();
+            }
+            //TODO:Add service to the local node.
+            //self.nodes.local_node.unwrap().services.push(Arc::clone(&service));
+        }
     }
     pub fn register_services() {
         todo!("add remote serice support")
@@ -54,8 +72,25 @@ impl Registry {
             _ => false,
         }
     }
-    fn register_actions() {
-        todo!()
+    fn register_actions(&mut self , node : Arc<Node> , service: Arc<ServiceItem> , actions : Vec<Action>) {
+        actions.iter().for_each(|action|{
+            if !Registry::check_action_visibility(action, &node){
+                return;
+            }
+            if node.local{
+                //TODO:stuff with middleware and handlers.
+
+
+            }else if let Some(_) = self.broker.transit {
+                //TODO: for remote services
+                return;
+            }
+            let node = Arc::clone(&node);
+            let service = Arc::clone(&service);
+            self.actions.add(node, service, action.to_owned());
+            //TODO:
+            //add the action to the service.
+        });
     }
     fn create_private_action_endpoint(action: Action) {
         todo!()
@@ -86,10 +121,10 @@ impl Registry {
         match node_id {
             Some(id) => {
                 if id == self.broker.node_id {
-                    self.regenerate_local_raw_info(true);
+                    self.regenerate_local_raw_info(Some(true));
                 }
             }
-            None => self.regenerate_local_raw_info(true),
+            None => {self.regenerate_local_raw_info(Some(true));},
         }
     }
     fn unregister_service_by_node_id(&mut self, node_id: &str) {
@@ -99,19 +134,26 @@ impl Registry {
         self.actions.remove(action_name, node_id);
     }
 
-    fn register_events() {
+    fn register_events(&mut self) {
         todo!()
     }
     fn unregister_event(&mut self, node_id: &str, event_name: &str) {
         todo!()
     }
 
-    fn regenerate_local_raw_info(&self, incSeq: bool) {
+    fn regenerate_local_raw_info(&self, incSeq: Option<bool>)->Value {
         todo!()
     }
 
-    fn get_local_node_info(&self, force: bool) {
-        todo!()
+    fn get_local_node_info(&self, force: bool)->Value {
+        if let None = self.nodes.local_node{
+            return self.regenerate_local_raw_info(None);
+        }
+        if force {
+            return self.regenerate_local_raw_info(None);
+        }
+       let value =  self.nodes.local_node.as_ref().unwrap().raw_info.to_owned();
+       value.unwrap()
     }
     fn get_node_info(&self, node_id: &str) -> Option<Node> {
         todo!()
@@ -119,13 +161,14 @@ impl Registry {
     fn process_node_info(&self) {
         todo!()
     }
-    fn get_node_list(&self, only_available: bool, with_services: bool) -> Vec<&Node> {
+  pub  fn get_node_list(&self, only_available: bool, with_services: bool) -> Vec<&Node> {
         self.nodes.list(only_available, with_services)
     }
-    fn get_services_list(&self) -> Vec<&ServiceItem> {
-        todo!()
+   pub fn get_services_list(&self, opts: ListOptions) -> Vec<&Arc<ServiceItem>> {
+        self.services.list(opts)
     }
-    fn get_actions_list(&self) -> Vec<&ActionEndpoint> {
+    fn get_actions_list(&self , opts:ListOptions) -> Vec<&ActionEndpoint> {
+        //self.actions.list(opts)
         todo!()
     }
     fn get_event_list(&self) -> Vec<&EventEndpoint> {
