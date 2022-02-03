@@ -1,4 +1,4 @@
-use crate::{ServiceBrokerMessage, service::SchemaActions, ServiceBroker};
+use crate::{ServiceBrokerMessage, service::{SchemaActions, ServiceSpec}, ServiceBroker};
 
 use super::*;
 use serde_json::Value;
@@ -40,7 +40,7 @@ impl Registry {
     fn update_metrics(&self) {
         todo!("update metrics")
     }
-    pub fn register_local_service(&mut self, svc: Service) {
+    pub fn register_local_service(&mut self, svc: ServiceSpec) {
         if !self
             .services
             .has(&svc.full_name, Some(&self.broker.node_id))

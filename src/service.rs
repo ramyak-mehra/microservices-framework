@@ -1,10 +1,14 @@
 use std::{collections::HashMap, sync::Arc};
 
+use crate::{
+    registry::{Action, Event, Logger},
+    ServiceBrokerMessage,
+};
 use chrono::Duration;
+use log::info;
+use tokio::sync::mpsc::Sender;
 
-use crate::registry::{Action, Event, Logger};
-
-#[derive(PartialEq, Eq, Clone)]
+#[derive(Clone)]
 pub struct Service {
     pub name: String,
     pub full_name: String,
@@ -16,7 +20,9 @@ pub struct Service {
     metadata: HashMap<String, String>,
     pub actions: Option<Vec<Action>>,
     pub events: Option<HashMap<String, Event>>,
+    broker_sender: Sender<ServiceBrokerMessage>,
 }
+
 #[derive(PartialEq, Eq, Clone)]
 struct Schema {
     mixins: Option<Vec<SchemaMixins>>,
@@ -27,6 +33,10 @@ struct Schema {
     version: Option<String>,
     settings: HashMap<String, String>,
     metadata: Option<HashMap<String, String>>,
+    created: Option<fn()>,
+    started: Option<fn()>,
+    stopped: Option<fn()>,
+    dependencies: Option<Vec<String>>,
 }
 
 #[derive(PartialEq, Eq, Clone)]
@@ -34,8 +44,8 @@ struct SchemaMixins {}
 
 #[derive(PartialEq, Eq, Clone)]
 pub struct SchemaActions {
-    name:String,
-    handler:fn()
+    name: String,
+    handler: fn(),
 }
 
 #[derive(PartialEq, Eq, Clone)]
@@ -45,8 +55,32 @@ enum SchemaMerged {
     MergedFn(fn()),
     MergedFnVec(Vec<fn()>),
 }
+pub struct ServiceSpec {
+    pub(crate) name: String,
+    pub(crate) version: String,
+    pub(crate) full_name: String,
+    pub(crate) settings: HashMap<String, String>,
+    /*
+    pub(crate)metadata
+    pub(crate)*/
+    pub(crate) actions: Option<Vec<Action>>,
+    pub(crate) events: Option<Vec<Event>>,
+}
 
 impl Service {
+    fn get_service_spec(&self) -> ServiceSpec {
+        //TODO: do something about actions and events
+        let service_spec = ServiceSpec {
+            name: self.name.clone(),
+            full_name: self.full_name.clone(),
+            settings: Service::get_public_settings(&self.settings),
+            version: self.version.clone(),
+            actions: None,
+            events: None,
+        };
+        service_spec
+    }
+
     fn parse_service_schema(&mut self, schema: Schema) {
         self.original_schema = Some(schema.clone());
 
@@ -88,16 +122,71 @@ impl Service {
         todo!("add service specification")
     }
 
-    pub fn init(&mut self) {
-        todo!("call broker to initialise the service and call the init method of service")
+    fn get_public_settings(settings: &HashMap<String, String>) -> HashMap<String, String> {
+        settings.clone()
     }
 
-    pub fn start(&mut self) {
-        todo!("call the broker to start the services and call the start method of services")
+    pub async fn init(&self) {
+        info!("Service {} is createing....", self.full_name);
+        if let Some(created) = self.schema.created {
+            created();
+        }
+        let _result = self
+            .broker_sender
+            .send(ServiceBrokerMessage::AddLocalService(self.clone()))
+            .await;
+        info!("Service {} created.", self.full_name);
+
+        todo!("call broker middlware")
     }
 
-    pub fn stop(&mut self) {
-        todo!("call the broker to stop the service and call the stop method of service")
+    pub async fn start(&self) {
+        info!("Service {} is starting...", self.full_name);
+
+        if let Some(dependencies) = &self.schema.dependencies {
+            let timeout: i64 = match self.settings.get("$dependencyTimeout") {
+                //TODO:raise an error rateher than default.
+                Some(val) => val.parse().unwrap_or(0),
+                None => 0,
+            };
+            //TODO: get interal from broker options
+            let interval: i64 = match self.settings.get("$dependencyInterval") {
+                Some(val) => val.parse().unwrap_or(0),
+                None => 0,
+            };
+
+            self.wait_for_services(dependencies, timeout, interval)
+                .await;
+        }
+
+        if let Some(started) = &self.schema.started {
+            started();
+        }
+
+        let _result = self
+            .broker_sender
+            .send(ServiceBrokerMessage::RegisterLocalService(
+                Service::get_service_spec(&self),
+            ))
+            .await;
+
+        info!("Service {} started.", self.full_name);
+
+        todo!("call service starting middleware");
+        todo!("call service started middleware")
+    }
+
+    pub async fn stop(&self) {
+        info!("Service {} is stopping...", self.full_name);
+
+        if let Some(stopped) = self.schema.stopped {
+            stopped();
+        }
+
+        info!("Service {} stopped.", self.full_name);
+
+        todo!("call service stopping middlewares");
+        todo!("call service stopped middleware");
     }
 
     fn create_action(&self, action_def: fn(), name: &str) -> Action {
@@ -111,7 +200,8 @@ impl Service {
         }
         //TODO add caching settings from settins
         //TODO better way to handle this instead of clone.
-        action = action.set_service(self.clone());
+        //TODO see if it is even necessary to give action access to the service.
+        // action = action.set_service(self.clone());
         action
     }
 
@@ -125,8 +215,15 @@ impl Service {
         todo!()
     }
 
-    fn wait_for_services(&self, service_names: Vec<String>, timout: Duration, interval: Duration) {
-        todo!("call broker to wait for services")
+    async fn wait_for_services(&self, service_names: &Vec<String>, timeout: i64, interval: i64) {
+        let _result = self
+            .broker_sender
+            .send(ServiceBrokerMessage::WaitForServices {
+                dependencies: service_names.clone(),
+                interval,
+                timeout,
+            })
+            .await;
     }
 
     fn get_versioned_full_name(name: &str, version: Option<&String>) -> String {

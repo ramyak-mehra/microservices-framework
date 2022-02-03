@@ -48,7 +48,7 @@ pub struct Action {
     pub name: String,
     visibility: Visibility,
     handler: fn(),
-    service: Option<Service>,
+    // service: Option<Service>,
 }
 
 impl Action {
@@ -57,13 +57,13 @@ impl Action {
             name,
             visibility: Visibility::Protected,
             handler,
-            service: None,
+            // service: None,
         }
     }
-    pub fn set_service(mut self, service: Service) -> Action {
-        self.service = Some(service);
-        self
-    }
+    // pub fn set_service(mut self, service: Service) -> Action {
+    //     self.service = Some(service);
+    //     self
+    // }
 }
 
 #[derive(PartialEq, Eq, Clone)]

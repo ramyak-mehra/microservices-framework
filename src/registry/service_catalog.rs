@@ -1,3 +1,5 @@
+use crate::service::ServiceSpec;
+
 use super::*;
 use regex::Regex;
 #[derive(PartialEq, Eq)]
@@ -12,7 +14,7 @@ impl ServiceCatalog {
         }
     }
     ///Add a new service
-    pub fn add(&mut self, node: Arc<Node>, service: &Service, local: bool) -> Arc<ServiceItem> {
+    pub fn add(&mut self, node: Arc<Node>, service: &ServiceSpec, local: bool) -> Arc<ServiceItem> {
         let service_item = ServiceItem::new(node, service, local);
         let service_item = Arc::new(service_item);
 

@@ -1,3 +1,5 @@
+use crate::service::ServiceSpec;
+
 use super::*;
 
 #[derive(PartialEq, Eq, Clone)]
@@ -15,7 +17,7 @@ pub struct ServiceItem {
     */
 }
 impl ServiceItem {
-    pub fn new(node: Arc<Node>, service: &Service, local: bool) -> Self {
+    pub fn new(node: Arc<Node>, service: &ServiceSpec, local: bool) -> Self {
         Self {
             node,
             local,
