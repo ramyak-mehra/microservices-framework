@@ -17,16 +17,16 @@ use crate::{
     Registry, Service,
 };
 
-pub struct ServiceBroker {
+pub(crate)struct ServiceBroker {
     reciever: Receiver<ServiceBrokerMessage>,
     started: bool,
     namespace: Option<String>,
     metdata: HashMap<String, String>,
-    pub node_id: String,
+    pub(crate)node_id: String,
     instance: String,
     services: Vec<Service>,
-    pub transit: Option<Transit>,
-    pub logger: Arc<Logger>,
+    pub(crate)transit: Option<Transit>,
+    pub(crate)logger: Arc<Logger>,
     /*
     local bus
     options
@@ -43,7 +43,7 @@ pub struct ServiceBroker {
     registry: Registry,
 }
 
-pub struct Transit {}
+pub(crate)struct Transit {}
 
 impl ServiceBroker {
     fn start(&mut self) {
@@ -100,7 +100,7 @@ impl ServiceBroker {
     }
 }
 
-pub enum ServiceBrokerMessage {
+pub(crate)enum ServiceBrokerMessage {
     AddLocalService(Service),
     RegisterLocalService(ServiceSpec),
     WaitForServices {

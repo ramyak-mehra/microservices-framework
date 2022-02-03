@@ -6,11 +6,11 @@ use serde_json::Value;
 use super::ServiceItem;
 
 #[derive(PartialEq, Eq, Clone)]
-pub struct Node {
-    pub id: String,
+pub(crate)struct Node {
+    pub(crate)id: String,
     instance_id: Option<String>,
-    pub available: bool,
-    pub local: bool,
+    pub(crate)available: bool,
+    pub(crate)local: bool,
     last_heartbeat_time: Duration,
     /* feields that need to be added later.
     config
@@ -22,18 +22,18 @@ pub struct Node {
     port: Option<u16>,
     hostname: Option<String>,
     udp_address: Option<IpAddr>,
-    pub raw_info: Option<Value>,
+    pub(crate)raw_info: Option<Value>,
     /*
     cpu
     cpuseq
     */
-    pub services: Vec<Arc<ServiceItem>>,
-    pub seq: usize,
+    pub(crate)services: Vec<Arc<ServiceItem>>,
+    pub(crate)seq: usize,
     offline_since: Option<Duration>,
 }
 
 impl Node {
-    pub fn new(id: String) -> Self {
+    pub(crate)fn new(id: String) -> Self {
         Self {
             id: id,
             instance_id: None,
@@ -54,20 +54,20 @@ impl Node {
             offline_since: None,
         }
     }
-    pub fn update(&mut self) {
+    pub(crate)fn update(&mut self) {
         todo!()
     }
-    pub fn update_local_info(&mut self) {
+    pub(crate)fn update_local_info(&mut self) {
         todo!()
     }
-    pub fn hearbeat(&mut self) {
+    pub(crate)fn hearbeat(&mut self) {
         if !self.available {
             self.available = true;
             self.offline_since = None;
         }
         todo!()
     }
-    pub fn disconnect(&mut self) {
+    pub(crate)fn disconnect(&mut self) {
         if self.available {
             self.seq = self.seq.saturating_add(1);
             /* update this with process uptime
@@ -77,37 +77,37 @@ impl Node {
         self.available = false;
     }
 
-    pub fn services_len(&self) -> usize {
+    pub(crate)fn services_len(&self) -> usize {
         self.services.len()
     }
-    pub fn set_local(mut self, value: bool) -> Self {
+    pub(crate)fn set_local(mut self, value: bool) -> Self {
         self.local = value;
         self
     }
-    pub fn set_ip_list(mut self, ip_list: Vec<IpAddr>) -> Self {
+    pub(crate)fn set_ip_list(mut self, ip_list: Vec<IpAddr>) -> Self {
         self.ip_list = ip_list;
         self
     }
-    pub fn set_instance_id(mut self, instance_id: String) -> Self {
+    pub(crate)fn set_instance_id(mut self, instance_id: String) -> Self {
         self.instance_id = Some(instance_id);
         self
     }
-    pub fn set_hostname(mut self, hostname: String) -> Self {
+    pub(crate)fn set_hostname(mut self, hostname: String) -> Self {
         self.hostname = Some(hostname);
         self
     }
-    pub fn set_client(mut self, client: Client) -> Self {
+    pub(crate)fn set_client(mut self, client: Client) -> Self {
         self.client = Some(client);
         self
     }
-    pub fn set_seq(mut self, seq: usize) -> Self {
+    pub(crate)fn set_seq(mut self, seq: usize) -> Self {
         self.seq = seq;
         self
     }
 }
 #[derive(PartialEq, Eq, Clone)]
 
-pub struct Client {
+pub(crate)struct Client {
     pub(crate) client_type: String,
     pub(crate) version: String,
     pub(crate) lang_version: String,

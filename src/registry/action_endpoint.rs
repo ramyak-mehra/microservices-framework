@@ -1,10 +1,10 @@
 use super::*;
 
 #[derive(PartialEq, Eq, Clone)]
-pub struct ActionEndpoint {
+pub(crate)struct ActionEndpoint {
     endpoint: Endpoint,
-    pub action: Action,
-    pub name: String,
+    pub(crate)action: Action,
+    pub(crate)name: String,
 }
 
 impl EndpointTrait for ActionEndpoint {

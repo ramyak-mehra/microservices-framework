@@ -5,12 +5,12 @@ use std::sync::RwLock;
 use super::{node, Client, Logger, Node, Registry};
 
 
-pub struct NodeCatalog {
+pub(crate)struct NodeCatalog {
     nodes: HashMap<String, Node>,
-    pub local_node: Option<Arc<Node>>,
+    pub(crate)local_node: Option<Arc<Node>>,
 }
 impl NodeCatalog {
-    pub fn new() -> Self {
+    pub(crate)fn new() -> Self {
         Self {
             nodes: HashMap::new(),
             local_node: None,
@@ -41,28 +41,28 @@ impl NodeCatalog {
         node.metadata = self.broker.metadata.clone()
         */
     }
-    pub fn add(&mut self, id: &str, node: Node) {
+    pub(crate)fn add(&mut self, id: &str, node: Node) {
         self.nodes.insert(id.to_string(), node);
     }
-    pub fn had_node(&self, id: &str) -> bool {
+    pub(crate)fn had_node(&self, id: &str) -> bool {
         match self.nodes.get(id) {
             Some(_) => true,
             None => false,
         }
     }
-    pub fn get_node(&self, id: &str) -> Option<&Node> {
+    pub(crate)fn get_node(&self, id: &str) -> Option<&Node> {
         self.nodes.get(id)
     }
-    pub fn get_node_mut(&mut self, id: &str) -> Option<&mut Node> {
+    pub(crate)fn get_node_mut(&mut self, id: &str) -> Option<&mut Node> {
         self.nodes.get_mut(id)
     }
-    pub fn delete(&mut self, id: &str) -> Option<Node> {
+    pub(crate)fn delete(&mut self, id: &str) -> Option<Node> {
         self.nodes.remove(id)
     }
-    pub fn count(&self) -> usize {
+    pub(crate)fn count(&self) -> usize {
         self.nodes.len()
     }
-    pub fn online_count(&self) -> usize {
+    pub(crate)fn online_count(&self) -> usize {
         let mut count: usize = 0;
         self.nodes.iter().for_each(|node_item| {
             let (_, node) = node_item;
@@ -72,14 +72,14 @@ impl NodeCatalog {
         });
         count
     }
-    pub fn process_node_info(&self) {
+    pub(crate)fn process_node_info(&self) {
         todo!()
     }
-    pub fn disconnect(&mut self) {
+    pub(crate)fn disconnect(&mut self) {
         todo!()
     }
 
-    pub fn list(&self, only_available: bool, with_services: bool) -> Vec<&Node> {
+    pub(crate)fn list(&self, only_available: bool, with_services: bool) -> Vec<&Node> {
         self.nodes
             .values()
             .filter(|node| {
@@ -93,7 +93,7 @@ impl NodeCatalog {
             })
             .collect()
     }
-    pub fn list_mut(&mut self, only_available: bool, with_services: bool) -> Vec<&mut Node> {
+    pub(crate)fn list_mut(&mut self, only_available: bool, with_services: bool) -> Vec<&mut Node> {
         self.nodes
             .values_mut()
             .filter(|node| {
@@ -107,10 +107,10 @@ impl NodeCatalog {
             })
             .collect()
     }
-    pub fn nodes_vec(&self) -> Vec<&Node> {
+    pub(crate)fn nodes_vec(&self) -> Vec<&Node> {
         self.nodes.values().collect()
     }
-    pub fn nodes_vec_mut(&mut self) -> Vec<&mut Node> {
+    pub(crate)fn nodes_vec_mut(&mut self) -> Vec<&mut Node> {
         self.nodes.values_mut().collect()
     }
 }

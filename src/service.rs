@@ -9,17 +9,17 @@ use log::info;
 use tokio::sync::mpsc::Sender;
 
 #[derive(Clone)]
-pub struct Service {
-    pub name: String,
-    pub full_name: String,
-    pub version: String,
+pub(crate)struct Service {
+    pub(crate)name: String,
+    pub(crate)full_name: String,
+    pub(crate)version: String,
     settings: HashMap<String, String>,
     logger: Arc<Logger>,
     schema: Schema,
     original_schema: Option<Schema>,
     metadata: HashMap<String, String>,
-    pub actions: Option<Vec<Action>>,
-    pub events: Option<HashMap<String, Event>>,
+    pub(crate)actions: Option<Vec<Action>>,
+    pub(crate)events: Option<HashMap<String, Event>>,
     broker_sender: Sender<ServiceBrokerMessage>,
 }
 
@@ -43,7 +43,7 @@ struct Schema {
 struct SchemaMixins {}
 
 #[derive(PartialEq, Eq, Clone)]
-pub struct SchemaActions {
+pub(crate)struct SchemaActions {
     name: String,
     handler: fn(),
 }
@@ -55,7 +55,7 @@ enum SchemaMerged {
     MergedFn(fn()),
     MergedFnVec(Vec<fn()>),
 }
-pub struct ServiceSpec {
+pub(crate)struct ServiceSpec {
     pub(crate) name: String,
     pub(crate) version: String,
     pub(crate) full_name: String,
@@ -126,7 +126,7 @@ impl Service {
         settings.clone()
     }
 
-    pub async fn init(&self) {
+    pub(crate)async fn init(&self) {
         info!("Service {} is createing....", self.full_name);
         if let Some(created) = self.schema.created {
             created();
@@ -140,7 +140,7 @@ impl Service {
         todo!("call broker middlware")
     }
 
-    pub async fn start(&self) {
+    pub(crate)async fn start(&self) {
         info!("Service {} is starting...", self.full_name);
 
         if let Some(dependencies) = &self.schema.dependencies {
@@ -176,7 +176,7 @@ impl Service {
         todo!("call service started middleware")
     }
 
-    pub async fn stop(&self) {
+    pub(crate)async fn stop(&self) {
         info!("Service {} is stopping...", self.full_name);
 
         if let Some(stopped) = self.schema.stopped {

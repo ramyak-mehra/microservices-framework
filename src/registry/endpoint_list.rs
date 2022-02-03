@@ -2,16 +2,16 @@ use std::sync::Arc;
 
 use super::*;
 #[derive(PartialEq, Eq, Clone)]
-pub struct EndpointList<T: EndpointTrait + Clone> {
-    pub name: String,
+pub(crate)struct EndpointList<T: EndpointTrait + Clone> {
+    pub(crate)name: String,
     group: Option<String>,
     internal: bool,
-    pub endpoints: Vec<T>,
+    pub(crate)endpoints: Vec<T>,
     local_endpoints: Vec<T>,
 }
 
 impl<T: EndpointTrait + Clone> EndpointList<T> {
-    pub fn new(name: String, group: Option<String>) -> Self {
+    pub(crate)fn new(name: String, group: Option<String>) -> Self {
         let internal = name.starts_with("$");
         let endpoints = Vec::new();
         let local_endpoints = Vec::new();
@@ -25,7 +25,7 @@ impl<T: EndpointTrait + Clone> EndpointList<T> {
         }
     }
 
-    pub fn add(&mut self, node: Arc<Node>, service: Arc<ServiceItem>, data: T::Data) {
+    pub(crate)fn add(&mut self, node: Arc<Node>, service: Arc<ServiceItem>, data: T::Data) {
         let entry = self
             .endpoints
             .iter_mut()
@@ -61,7 +61,7 @@ impl<T: EndpointTrait + Clone> EndpointList<T> {
         todo!()
     }
 
-    pub fn has_available(&self) -> bool {
+    pub(crate)fn has_available(&self) -> bool {
         for ep in self.endpoints.iter() {
             if ep.is_available() {
                 return true;
@@ -69,7 +69,7 @@ impl<T: EndpointTrait + Clone> EndpointList<T> {
         }
         return false;
     }
-    pub fn has_local(&self) -> bool {
+    pub(crate)fn has_local(&self) -> bool {
         self.local_endpoints.len() > 0
     }
 
@@ -85,10 +85,10 @@ impl<T: EndpointTrait + Clone> EndpointList<T> {
         drop(local);
     }
 
-    pub fn count(&self) -> usize {
+    pub(crate)fn count(&self) -> usize {
         self.endpoints.len()
     }
-    pub fn get_endpoint_by_node_id(&self, node_id: &str) -> Option<&T> {
+    pub(crate)fn get_endpoint_by_node_id(&self, node_id: &str) -> Option<&T> {
         self.endpoints
             .iter()
             .find(|e| e.id() == node_id && e.is_available())
@@ -99,7 +99,7 @@ impl<T: EndpointTrait + Clone> EndpointList<T> {
             None => false,
         }
     }
-    pub fn remove_by_service(&mut self, service: &ServiceItem) {
+    pub(crate)fn remove_by_service(&mut self, service: &ServiceItem) {
         self.endpoints.retain(|ep| {
             let delete = ep.service() == service;
             !delete
@@ -107,7 +107,7 @@ impl<T: EndpointTrait + Clone> EndpointList<T> {
         self.update_local_endpoints();
     }
 
-    pub fn remove_by_node_id(&mut self, node_id: &str) {
+    pub(crate)fn remove_by_node_id(&mut self, node_id: &str) {
         self.endpoints.retain(|ep| {
             let delete = ep.id() == node_id;
             !delete

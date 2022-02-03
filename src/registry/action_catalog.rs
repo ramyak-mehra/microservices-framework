@@ -1,19 +1,19 @@
+use super::*;
+use left_right::{Absorb, ReadHandle, WriteHandle};
 use std::collections::HashMap;
 
-use super::*;
-
-#[derive(PartialEq, Eq)]
-pub struct ActionCatalog {
+#[derive(PartialEq, Eq , Clone)]
+pub(crate)struct ActionCatalog {
     actions: ActionsMap,
 }
 
 impl ActionCatalog {
-    pub fn new() -> Self {
+    pub(crate)fn new() -> Self {
         Self {
             actions: HashMap::new(),
         }
     }
-   pub fn add(&mut self, node: Arc<Node>, service: Arc<ServiceItem>, action: Action) {
+    pub(crate)fn add(&mut self, node: Arc<Node>, service: Arc<ServiceItem>, action: Action) {
         let list = self.actions.get_mut(&action.name);
         match list {
             Some(list) => list.add(node, service, action),
@@ -26,7 +26,23 @@ impl ActionCatalog {
             }
         }
     }
-    pub fn get(&self, action_name: &str) -> Option<&EndpointList<ActionEndpoint>> {
+    pub(crate)fn add_concurrent(&mut self, node: &mut Arc<Node>, service: &mut Arc<ServiceItem>, action: Action) {
+        let list = self.actions.get_mut(&action.name);
+        let node = Arc::clone(node);
+        let service = Arc::clone(service);
+        match list {
+            Some(list) => list.add(node, service, action),
+            None => {
+                let name = action.name.clone();
+                let mut list = EndpointList::new(name, None);
+                let name = action.name.clone();
+                list.add(node, service, action);
+                self.actions.insert(name, list);
+            }
+        }
+    }
+    
+    pub(crate)fn get(&self, action_name: &str) -> Option<&EndpointList<ActionEndpoint>> {
         self.actions.get(action_name)
     }
     fn is_available(&self, action_name: &str) -> bool {
@@ -41,13 +57,13 @@ impl ActionCatalog {
             el.remove_by_service(service);
         });
     }
-    pub fn remove(&mut self, action_name: &str, node_id: &str) {
+    pub(crate)fn remove(&mut self, action_name: &str, node_id: &str) {
         let list = self.actions.get_mut(action_name);
         if let Some(el) = list {
             el.remove_by_node_id(node_id);
         }
     }
-    pub fn list(&self, opts: ListOptions) -> Vec<&EndpointList<ActionEndpoint>> {
+    pub(crate)fn list(&self, opts: ListOptions) -> Vec<&EndpointList<ActionEndpoint>> {
         let res: HashMap<&String, &EndpointList<ActionEndpoint>> = self
             .actions
             .iter()

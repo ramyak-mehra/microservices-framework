@@ -5,7 +5,7 @@ use crate::ServiceBroker;
 mod round_robin;
 
 
-pub trait Strategy {
+pub(crate)trait Strategy {
     fn new(registry: Arc<Registry>, broker: Arc<ServiceBroker>, opts: StrategyOpts) -> Self;
     fn select<'a>(
         &mut self,
@@ -14,6 +14,6 @@ pub trait Strategy {
     ) -> Option<&'a ActionEndpoint>;
 }
 
-pub struct Context {}
+pub(crate)struct Context {}
 
-pub struct StrategyOpts{}
+pub(crate)struct StrategyOpts{}

@@ -1,7 +1,7 @@
 use super::*;
 
 #[derive(Clone)]
-pub struct EventEndpoint {
+pub(crate)struct EventEndpoint {
     endpoint: Endpoint,
     event: Event,
 }
