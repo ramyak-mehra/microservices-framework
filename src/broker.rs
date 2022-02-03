@@ -1,25 +1,32 @@
 use std::{
     any,
     collections::HashMap,
-    sync::{mpsc::{Receiver, Sender}, Arc},
+    sync::{
+        mpsc::{Receiver, Sender},
+        Arc,
+    },
 };
 
 use anyhow::{bail, Error, Result};
 
 use chrono::{DateTime, Utc};
 
-use crate::{registry::{service_item::ServiceItem, Logger}, service, Registry, Service};
+use crate::{
+    registry::{service_item::ServiceItem, Logger},
+    service::{self, ServiceSpec},
+    Registry, Service,
+};
 
 pub struct ServiceBroker {
     reciever: Receiver<ServiceBrokerMessage>,
     started: bool,
     namespace: Option<String>,
     metdata: HashMap<String, String>,
-   pub node_id: String,
+    pub node_id: String,
     instance: String,
     services: Vec<Service>,
-  pub  transit : Option<Transit>,
-   pub logger : Arc<Logger>,
+    pub transit: Option<Transit>,
+    pub logger: Arc<Logger>,
     /*
     local bus
     options
@@ -36,7 +43,7 @@ pub struct ServiceBroker {
     registry: Registry,
 }
 
-pub struct Transit{}
+pub struct Transit {}
 
 impl ServiceBroker {
     fn start(&mut self) {
@@ -47,7 +54,7 @@ impl ServiceBroker {
     fn add_local_service(&mut self, service: Service) {
         self.services.push(service);
     }
-    fn register_local_service(&mut self, service: Service) {
+    fn register_local_service(&mut self, service: ServiceSpec) {
         self.registry.register_local_service(service);
     }
 
@@ -94,7 +101,13 @@ impl ServiceBroker {
 }
 
 pub enum ServiceBrokerMessage {
-
+    AddLocalService(Service),
+    RegisterLocalService(ServiceSpec),
+    WaitForServices {
+        dependencies: Vec<String>,
+        timeout: i64,
+        interval: i64,
+    },
 }
 
 fn remove_from_list<T: PartialEq + Eq>(list: &mut Vec<T>, value: &T) {
