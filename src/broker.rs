@@ -1,19 +1,18 @@
 use std::{
-    any,
     collections::HashMap,
     sync::{
-        mpsc::{Receiver, Sender},
+        mpsc::{Receiver, },
         Arc,
     },
 };
 
-use anyhow::{bail, Error, Result};
+use anyhow::{bail, Result};
 
-use chrono::{DateTime, Utc};
+use chrono:: Utc;
 
 use crate::{
-    registry::{service_item::ServiceItem, Logger},
-    service::{self, ServiceSpec},
+    registry:: Logger,
+    service::ServiceSpec,
     Registry, Service,
 };
 
@@ -99,7 +98,7 @@ impl ServiceBroker {
         })
     }
 }
-
+#[derive(PartialEq ,Debug)]
 pub enum ServiceBrokerMessage {
     AddLocalService(Service),
     RegisterLocalService(ServiceSpec),

@@ -1,4 +1,3 @@
-use log::{debug, error, info, log_enabled, Level};
 
 trait LoggerTrait {
     fn init();

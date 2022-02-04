@@ -43,7 +43,7 @@ pub struct Logger {}
 
 trait FnType {}
 
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone , Debug)]
 pub struct Action {
     pub name: String,
     visibility: Visibility,
@@ -66,14 +66,14 @@ impl Action {
     // }
 }
 
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone , Debug)]
 enum Visibility {
     Published,
     Public,
     Protected,
     Private,
 }
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone ,Debug)]
 pub struct Event {}
 impl FnType for Event {}
 

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::registry::{ActionEndpoint, Registry , Opts};
+use crate::registry::{ActionEndpoint, Registry , };
 use crate::ServiceBroker;
 mod round_robin;
 

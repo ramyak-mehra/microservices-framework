@@ -1,4 +1,7 @@
-use crate::{ServiceBrokerMessage, service::{SchemaActions, ServiceSpec}, ServiceBroker};
+use crate::{
+    service::{SchemaActions, ServiceSpec},
+    ServiceBroker, ServiceBrokerMessage,
+};
 
 use super::*;
 use serde_json::Value;
@@ -11,7 +14,6 @@ pub struct Registry {
     nodes: NodeCatalog,
     services: ServiceCatalog,
     actions: ActionCatalog,
-    
     /*
     metrics
     strategy factor
@@ -21,10 +23,20 @@ pub struct Registry {
     */
 }
 impl Registry {
-    pub fn new(broker: Arc<ServiceBroker>) -> Self {
+    pub fn new(broker: Arc<ServiceBroker>, broker_sender: Sender<ServiceBrokerMessage>) -> Self {
         let logger = &broker.logger;
         let logger = Arc::clone(&logger);
-        todo!()
+        let nodes = NodeCatalog::new();
+        let services = ServiceCatalog::new();
+        let actions = ActionCatalog::new();
+        Registry {
+            logger,
+            broker_sender,
+            broker,
+            nodes,
+            services,
+            actions,
+        }
     }
 
     fn init() {
@@ -52,7 +64,7 @@ impl Registry {
             );
             if let Some(actions) = svc.actions {
                 let local_node = Arc::clone(&self.nodes.local_node.as_ref().unwrap());
-                self.register_actions(local_node , Arc::clone(&service) , actions);
+                self.register_actions(local_node, Arc::clone(&service), actions);
             }
             if let Some(events) = svc.events {
                 self.register_events();
@@ -72,16 +84,19 @@ impl Registry {
             _ => false,
         }
     }
-    fn register_actions(&mut self , node : Arc<Node> , service: Arc<ServiceItem> , actions : Vec<Action>) {
-        actions.iter().for_each(|action|{
-            if !Registry::check_action_visibility(action, &node){
+    fn register_actions(
+        &mut self,
+        node: Arc<Node>,
+        service: Arc<ServiceItem>,
+        actions: Vec<Action>,
+    ) {
+        actions.iter().for_each(|action| {
+            if !Registry::check_action_visibility(action, &node) {
                 return;
             }
-            if node.local{
+            if node.local {
                 //TODO:stuff with middleware and handlers.
-
-
-            }else if let Some(_) = self.broker.transit {
+            } else if let Some(_) = self.broker.transit {
                 //TODO: for remote services
                 return;
             }
@@ -124,7 +139,9 @@ impl Registry {
                     self.regenerate_local_raw_info(Some(true));
                 }
             }
-            None => {self.regenerate_local_raw_info(Some(true));},
+            None => {
+                self.regenerate_local_raw_info(Some(true));
+            }
         }
     }
     fn unregister_service_by_node_id(&mut self, node_id: &str) {
@@ -141,19 +158,19 @@ impl Registry {
         todo!()
     }
 
-    fn regenerate_local_raw_info(&self, incSeq: Option<bool>)->Value {
+    fn regenerate_local_raw_info(&self, incSeq: Option<bool>) -> Value {
         todo!()
     }
 
-    fn get_local_node_info(&self, force: bool)->Value {
-        if let None = self.nodes.local_node{
+    fn get_local_node_info(&self, force: bool) -> Value {
+        if let None = self.nodes.local_node {
             return self.regenerate_local_raw_info(None);
         }
         if force {
             return self.regenerate_local_raw_info(None);
         }
-       let value =  self.nodes.local_node.as_ref().unwrap().raw_info.to_owned();
-       value.unwrap()
+        let value = self.nodes.local_node.as_ref().unwrap().raw_info.to_owned();
+        value.unwrap()
     }
     fn get_node_info(&self, node_id: &str) -> Option<Node> {
         todo!()
@@ -161,13 +178,13 @@ impl Registry {
     fn process_node_info(&self) {
         todo!()
     }
-  pub  fn get_node_list(&self, only_available: bool, with_services: bool) -> Vec<&Node> {
+    pub fn get_node_list(&self, only_available: bool, with_services: bool) -> Vec<&Node> {
         self.nodes.list(only_available, with_services)
     }
-   pub fn get_services_list(&self, opts: ListOptions) -> Vec<&Arc<ServiceItem>> {
+    pub fn get_services_list(&self, opts: ListOptions) -> Vec<&Arc<ServiceItem>> {
         self.services.list(opts)
     }
-    fn get_actions_list(&self , opts:ListOptions) -> Vec<&ActionEndpoint> {
+    fn get_actions_list(&self, opts: ListOptions) -> Vec<&ActionEndpoint> {
         //self.actions.list(opts)
         todo!()
     }
@@ -177,4 +194,8 @@ impl Registry {
     fn get_node_raw_list(&self) {
         todo!()
     }
+}
+#[cfg(test)]
+mod tests {
+    
 }
