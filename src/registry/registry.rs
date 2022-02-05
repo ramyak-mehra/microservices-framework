@@ -1,9 +1,8 @@
-use crate::{
-    service::{SchemaActions, ServiceSpec},
-    ServiceBroker, ServiceBrokerMessage,
-};
+use crate::{service::ServiceSpec, ServiceBroker, ServiceBrokerMessage};
+use derive_more::Display;
 
 use super::*;
+use anyhow::{bail, Error};
 use serde_json::Value;
 use tokio::sync::mpsc::Sender;
 
@@ -107,8 +106,15 @@ impl Registry {
             //add the action to the service.
         });
     }
-    fn create_private_action_endpoint(action: Action) {
-        todo!()
+    fn create_private_action_endpoint(&self, action: Action) -> anyhow::Result<ActionEndpoint> {
+        let local_node = match &self.nodes.local_node {
+            Some(node) => node,
+            None => bail!("No local node available"),
+        };
+        let node = Arc::clone(local_node);
+        todo!("add service to action")
+        // let action_ep = ActionEndpoint::new(node, service, action);
+        // Ok(action_ep)
     }
     pub fn has_services(&self, full_name: &str, node_id: Option<&str>) -> bool {
         self.services.has(full_name, node_id)
@@ -162,15 +168,21 @@ impl Registry {
         todo!()
     }
 
-    fn get_local_node_info(&self, force: bool) -> Value {
+    fn get_local_node_info(&self, force: bool) -> Result<Value , RegistryError> {
         if let None = self.nodes.local_node {
-            return self.regenerate_local_raw_info(None);
+            return Ok(self.regenerate_local_raw_info(None));
         }
         if force {
-            return self.regenerate_local_raw_info(None);
+            return Ok(self.regenerate_local_raw_info(None));
+        }
+        if let None = self.nodes.local_node {
+            return Err(RegistryError::NoLocalNodeFound);
         }
         let value = self.nodes.local_node.as_ref().unwrap().raw_info.to_owned();
-        value.unwrap()
+        match value {
+            Some(value) => Ok(value),
+            None => Err(RegistryError::NoLocalNodeFound),
+        }
     }
     fn get_node_info(&self, node_id: &str) -> Option<Node> {
         todo!()
@@ -195,7 +207,13 @@ impl Registry {
         todo!()
     }
 }
-#[cfg(test)]
-mod tests {
-    
+use thiserror::Error;
+#[derive(Error, Debug)]
+enum RegistryError {
+    #[error("No local node found")]
+    NoLocalNodeFound,
 }
+
+#[cfg(test)]
+
+mod tests {}

@@ -204,7 +204,6 @@ impl Service {
             }
         }
         //TODO add caching settings from settins
-        //TODO better way to handle this instead of clone.
         //TODO see if it is even necessary to give action access to the service.
         // action = action.set_service(self.clone());
         action
