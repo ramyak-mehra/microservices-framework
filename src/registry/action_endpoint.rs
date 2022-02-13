@@ -12,9 +12,9 @@ impl EndpointTrait for ActionEndpoint {
     fn update(&mut self, data: Self::Data) {
         self.action = data;
     }
-    fn new(node: Arc<Node>, service: Arc<ServiceItem>, data: Self::Data) -> Self {
-        let endpoint = Endpoint::new(node, service);
-        let name = format!("{}:{}", endpoint.id, data.name);
+    fn new(node_id: &str, service: &ServiceItem, data: Self::Data) -> Self {
+        let endpoint = Endpoint::new(node_id, service);
+        let name = format!("{}:{}", endpoint.node_id, data.name);
         Self {
             endpoint,
             name,
@@ -22,13 +22,10 @@ impl EndpointTrait for ActionEndpoint {
         }
     }
 
-    fn node(&self) -> &Node {
-        &self.endpoint.node
+    fn node(&self) -> &str {
+        &self.endpoint.node_id
     }
 
-    fn service(&self) -> &ServiceItem {
-        &self.endpoint.service
-    }
     fn is_local(&self) -> bool {
         self.endpoint.local
     }
@@ -36,9 +33,9 @@ impl EndpointTrait for ActionEndpoint {
         self.endpoint.state
     }
     fn id(&self) -> &str {
-        &self.endpoint.id
+        &self.endpoint.node_id
     }
     fn service_name(&self) -> &str {
-        &self.endpoint.service.name
+        &self.endpoint.service
     }
 }

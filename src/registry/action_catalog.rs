@@ -13,7 +13,7 @@ impl ActionCatalog {
             actions: HashMap::new(),
         }
     }
-   pub fn add(&mut self, node: Arc<Node>, service: Arc<ServiceItem>, action: Action) {
+   pub fn add(&mut self, node: &Node, service: &ServiceItem, action: Action) {
         let list = self.actions.get_mut(&action.name);
         match list {
             Some(list) => list.add(node, service, action),

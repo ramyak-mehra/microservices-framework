@@ -5,7 +5,7 @@ use super::*;
 #[derive(PartialEq, Eq, Clone)]
 pub struct ServiceItem {
     pub name: String,
-    pub node: Arc<Node>,
+    pub node: String,
     pub local: bool,
     pub full_name: String,
     version: String,
@@ -17,9 +17,9 @@ pub struct ServiceItem {
     */
 }
 impl ServiceItem {
-    pub fn new(node: Arc<Node>, service: &ServiceSpec, local: bool) -> Self {
+    pub fn new(node: &Node, service: &ServiceSpec, local: bool) -> Self {
         Self {
-            node,
+            node: node.id.clone(),
             local,
             actions: HashMap::new(),
             full_name: service.full_name.to_string(),
@@ -29,7 +29,7 @@ impl ServiceItem {
     }
     pub fn equals(&self, full_name: &str, node_id: Option<&str>) -> bool {
         match node_id {
-            Some(id) => self.node.id == id && self.full_name == full_name,
+            Some(id) => self.node == id && self.full_name == full_name,
             None => self.full_name == full_name,
         }
     }
@@ -52,5 +52,8 @@ impl ServiceItem {
     }
     pub fn add_event(&mut self, event: EndpointList<EventEndpoint>) {
         todo!("Implement the events map")
+    }
+    pub fn unique_name(&self) -> String {
+        format!("{}{}{}", self.full_name, self.version, self.node)
     }
 }

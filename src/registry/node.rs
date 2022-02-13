@@ -27,7 +27,7 @@ pub struct Node {
     cpu
     cpuseq
     */
-    pub services: Vec<Arc<ServiceItem>>,
+    pub services: Vec<String>,
     pub seq: usize,
     offline_since: Option<Duration>,
 }

@@ -2,22 +2,26 @@ use std::{collections::HashMap, net::IpAddr, sync::Arc};
 
 use std::sync::RwLock;
 
-use super::{node, Client, Logger, Node, Registry};
+use anyhow::bail;
 
+use crate::registry::RegistryError;
+
+use super::{node, Client, Logger, Node, Registry};
 
 pub struct NodeCatalog {
     nodes: HashMap<String, Node>,
-    pub local_node: Option<Arc<Node>>,
+    local_node_id: String,
 }
 impl NodeCatalog {
     pub fn new() -> Self {
+        //TODO: add the create local node logic here
         Self {
             nodes: HashMap::new(),
-            local_node: None,
+            local_node_id: "".to_string(),
         }
     }
     ///Create a local node
-    fn create_local_node(&mut self, version: String, node_id: String, instance_id: String) -> Arc<Node> {
+    fn create_local_node(&mut self, version: String, node_id: String, instance_id: String) {
         let client = Client {
             client_type: "rust".to_string(),
             lang_version: "1.56.1".to_string(),
@@ -30,12 +34,9 @@ impl NodeCatalog {
             .set_hostname(get_hostname())
             .set_seq(1)
             .set_client(client);
-
+        //TODO:data constency between local node and node catalog
         self.nodes.insert(node.id.to_string(), node.clone());
-        let node = Arc::new(node);
-        let node_c = Arc::clone(&node);
-        self.local_node = Some(node);
-        return node_c;
+        self.local_node_id = node.id;
         todo!()
         /*
         node.metadata = self.broker.metadata.clone()
@@ -53,6 +54,19 @@ impl NodeCatalog {
     pub fn get_node(&self, id: &str) -> Option<&Node> {
         self.nodes.get(id)
     }
+    pub fn local_node(&self) -> anyhow::Result<&Node> {
+        match self.nodes.get(&self.local_node_id) {
+            Some(node) => Ok(node),
+            None => bail!(RegistryError::NoLocalNodeFound),
+        }
+    }
+    pub fn local_node_mut(&mut self) -> anyhow::Result<&mut Node> {
+        match self.nodes.get_mut(&self.local_node_id) {
+            Some(node) => Ok(node),
+            None => bail!(RegistryError::NoLocalNodeFound),
+        }
+    }
+
     pub fn get_node_mut(&mut self, id: &str) -> Option<&mut Node> {
         self.nodes.get_mut(id)
     }
@@ -120,4 +134,3 @@ fn get_ip_list() -> Vec<IpAddr> {
 fn get_hostname() -> String {
     todo!()
 }
-
