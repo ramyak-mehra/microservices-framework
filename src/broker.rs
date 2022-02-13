@@ -1,20 +1,20 @@
 use std::{
     collections::HashMap,
-    sync::{
-        mpsc::{Receiver, },
-        Arc,
-    },
+    sync::{mpsc::Receiver, Arc},
 };
 
 use anyhow::{bail, Result};
 
-use chrono:: Utc;
+use chrono::Utc;
+use serde_json::Value;
+use tokio::sync::oneshot;
 
-use crate::{
-    registry:: Logger,
-    service::ServiceSpec,
-    Registry, Service,
-};
+use crate::{registry::Logger, service::ServiceSpec, Registry, Service};
+
+#[derive(Default)]
+pub struct BrokerOptions {
+    pub max_call_level: usize,
+}
 
 pub struct ServiceBroker {
     reciever: Receiver<ServiceBrokerMessage>,
@@ -26,9 +26,10 @@ pub struct ServiceBroker {
     services: Vec<Service>,
     pub transit: Option<Transit>,
     pub logger: Arc<Logger>,
+    pub options: BrokerOptions,
     /*
     local bus
-    options
+
     logger
     metricss
     middlewere
@@ -98,7 +99,7 @@ impl ServiceBroker {
         })
     }
 }
-#[derive(PartialEq ,Debug)]
+#[derive(Debug)]
 pub enum ServiceBrokerMessage {
     AddLocalService(Service),
     RegisterLocalService(ServiceSpec),
@@ -107,7 +108,38 @@ pub enum ServiceBrokerMessage {
         timeout: i64,
         interval: i64,
     },
+    Broadcast {
+        event_name: String,
+        data: Value,
+        opts: Value,
+    },
+    Emit {
+        event_name: String,
+        data: Value,
+        opts: Value,
+    },
+    Call {
+        action_name: String,
+        params: Value,
+        opts: Value,
+        result_channel: oneshot::Sender<HandlerResult>,
+    },
 }
+impl PartialEq for ServiceBrokerMessage {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::AddLocalService(l0), Self::AddLocalService(r0)) => l0 == r0,
+            (Self::RegisterLocalService(l0), Self::RegisterLocalService(r0)) => l0 == r0,
+            (Self::WaitForServices { dependencies: l_dependencies, timeout: l_timeout, interval: l_interval }, Self::WaitForServices { dependencies: r_dependencies, timeout: r_timeout, interval: r_interval }) => l_dependencies == r_dependencies && l_timeout == r_timeout && l_interval == r_interval,
+            (Self::Broadcast { event_name: l_event_name, data: l_data, opts: l_opts }, Self::Broadcast { event_name: r_event_name, data: r_data, opts: r_opts }) => l_event_name == r_event_name && l_data == r_data && l_opts == r_opts,
+            (Self::Emit { event_name: l_event_name, data: l_data, opts: l_opts }, Self::Emit { event_name: r_event_name, data: r_data, opts: r_opts }) => l_event_name == r_event_name && l_data == r_data && l_opts == r_opts,
+            (Self::Call { action_name: l_action_name, params: l_params, opts: l_opts, result_channel: l_result_channel }, Self::Call { action_name: r_action_name, params: r_params, opts: r_opts, result_channel: r_result_channel }) => l_action_name == r_action_name && l_params == r_params && l_opts == r_opts,
+            _ => false
+        }
+    }
+}
+#[derive(PartialEq, Debug)]
+pub struct HandlerResult {}
 
 fn remove_from_list<T: PartialEq + Eq>(list: &mut Vec<T>, value: &T) {
     list.retain(|t| {

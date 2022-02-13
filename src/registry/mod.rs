@@ -89,6 +89,7 @@ pub trait EndpointTrait {
     fn is_available(&self) -> bool;
     fn id(&self) -> &str;
     fn service_name(&self) -> &str;
+    fn ep_type(&self)->EndpointType;
 }
 
 #[derive(PartialEq, Eq, Clone)]
@@ -114,7 +115,7 @@ impl Endpoint {
     }
 }
 
-enum EndpointType {
+pub enum EndpointType {
     Action,
     Event,
 }
