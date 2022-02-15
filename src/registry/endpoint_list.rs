@@ -25,11 +25,11 @@ impl<T: EndpointTrait + Clone> EndpointList<T> {
         }
     }
 
-    pub fn add(&mut self, node: Arc<Node>, service: Arc<ServiceItem>, data: T::Data) {
+    pub fn add(&mut self, node: &Node, service:&ServiceItem, data: T::Data) {
         let entry = self
             .endpoints
             .iter_mut()
-            .find(|x| x.node() == &*node && x.service().name == service.name);
+            .find(|x| x.service_name() == service.unique_name());
 
         match entry {
             Some(found) => {
@@ -39,7 +39,7 @@ impl<T: EndpointTrait + Clone> EndpointList<T> {
             None => {}
         }
 
-        let ep = T::new(Arc::clone(&node), Arc::clone(&service), data);
+        let ep = T::new(&node.id, service, data);
 
         self.endpoints.push(ep.clone());
         if ep.is_local() {
@@ -101,7 +101,7 @@ impl<T: EndpointTrait + Clone> EndpointList<T> {
     }
     pub fn remove_by_service(&mut self, service: &ServiceItem) {
         self.endpoints.retain(|ep| {
-            let delete = ep.service() == service;
+            let delete = ep.service_name() == service.unique_name();
             !delete
         });
         self.update_local_endpoints();

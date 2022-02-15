@@ -1,10 +1,11 @@
+use anyhow::bail;
+
 use crate::service::ServiceSpec;
 
 use super::*;
-use regex::Regex;
 #[derive(PartialEq, Eq)]
 pub struct ServiceCatalog {
-    services: Vec<Arc<ServiceItem>>,
+    services: Vec<ServiceItem>,
 }
 
 impl ServiceCatalog {
@@ -14,13 +15,11 @@ impl ServiceCatalog {
         }
     }
     ///Add a new service
-    pub fn add(&mut self, node: Arc<Node>, service: &ServiceSpec, local: bool) -> Arc<ServiceItem> {
+    pub fn add(&mut self, node: &Node, service: &ServiceSpec, local: bool) -> String {
         let service_item = ServiceItem::new(node, service, local);
-        let service_item = Arc::new(service_item);
-
-        let item = Arc::clone(&service_item);
+        let full_name = service_item.full_name.clone();
         self.services.push(service_item);
-        item
+        full_name
     }
     ///Check the service exsists
     pub fn has(&self, full_name: &str, node_id: Option<&str>) -> bool {
@@ -33,7 +32,7 @@ impl ServiceCatalog {
             None => false,
         }
     }
-    pub fn get(&self, full_name: &str, node_id: Option<&str>) -> Option<&Arc<ServiceItem>> {
+    pub fn get(&self, full_name: &str, node_id: Option<&str>) -> Option<&ServiceItem> {
         self.services
             .iter()
             .find(|svc| svc.equals(full_name, node_id))
@@ -42,42 +41,46 @@ impl ServiceCatalog {
         &mut self,
         full_name: &str,
         node_id: Option<&str>,
-    ) -> Option<&mut Arc<ServiceItem>> {
-        self.services
+    ) -> anyhow::Result<&mut ServiceItem> {
+        let result = self
+            .services
             .iter_mut()
-            .find(|svc| svc.equals(full_name, node_id))
+            .find(|svc| svc.equals(full_name, node_id));
+        match result {
+            Some(service_item) => Ok(service_item),
+            None => bail!(RegistryError::NoServiceItemFound),
+        }
     }
-    pub fn list(
-        &self,
-       opts : ListOptions 
-    ) -> Vec<&Arc<ServiceItem>> {
-       
-        self.services.iter().filter(|svc| {
-            if opts.skip_internal && get_internal_service_regex_match(&svc.name) {
-                return false;
-            }
-            if opts.only_local && !svc.local {
-                return false;
-            }
-            if opts.only_available && !svc.node.available {
-                return false;
-            }
+    pub fn list(&self, opts: ListOptions) -> Vec<&ServiceItem> {
+        self.services
+            .iter()
+            .filter(|svc| {
+                if opts.skip_internal && get_internal_service_regex_match(&svc.name) {
+                    return false;
+                }
+                if opts.only_local && !svc.local {
+                    return false;
+                }
+                //TODO: find a way to get node available
+                // if opts.only_available && !svc.node.available {
+                //     return false;
+                // }
 
-            return true;
-        }).collect()
+                return true;
+            })
+            .collect()
         // TODO:("implement grouping and all that stuff")
-
     }
     pub fn get_local_node_service(&self) {
         todo!()
     }
     //remove all endpoints by node_id.
     pub fn remove_all_by_node_id(&mut self, node_id: &str) {
-        let services: Vec<&Arc<ServiceItem>> = self
+        let services: Vec<&ServiceItem> = self
             .services
             .iter()
             .filter(|svc| {
-                if svc.node.id == node_id {
+                if svc.node == node_id {
                     todo!("remove actions and events in registry");
                     return false;
                 }

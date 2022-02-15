@@ -1,5 +1,4 @@
 use crate::{service::ServiceSpec, ServiceBroker, ServiceBrokerMessage};
-use derive_more::Display;
 
 use super::*;
 use anyhow::{bail, Error};
@@ -51,31 +50,33 @@ impl Registry {
     fn update_metrics(&self) {
         todo!("update metrics")
     }
-    pub fn register_local_service(&mut self, svc: ServiceSpec) {
+    pub fn register_local_service(&mut self, svc: ServiceSpec) -> anyhow::Result<()> {
         if !self
             .services
             .has(&svc.full_name, Some(&self.broker.node_id))
         {
-            let service = self.services.add(
-                Arc::clone(&self.nodes.local_node.as_ref().unwrap()),
-                &svc,
-                true,
-            );
+            let node = self.nodes.local_node()?;
+
+            let service_full_name = self.services.add(node, &svc, true);
             if let Some(actions) = svc.actions {
-                let local_node = Arc::clone(&self.nodes.local_node.as_ref().unwrap());
-                self.register_actions(local_node, Arc::clone(&service), actions);
+                self.register_actions(&service_full_name, actions);
             }
             if let Some(events) = svc.events {
                 self.register_events();
             }
-            //TODO:Add service to the local node.
-            //self.nodes.local_node.unwrap().services.push(Arc::clone(&service));
+
+            {
+                let local_node = self.nodes.local_node_mut()?;
+
+                local_node.services.push(service_full_name);
+            }
         }
+        Ok(())
     }
     pub fn register_services() {
         todo!("add remote serice support")
     }
-    fn check_action_visibility(action: &Action, node: &Arc<Node>) -> bool {
+    fn check_action_visibility(action: &Action, node: &Node) -> bool {
         match action.visibility {
             Visibility::Published => true,
             Visibility::Public => true,
@@ -85,12 +86,14 @@ impl Registry {
     }
     fn register_actions(
         &mut self,
-        node: Arc<Node>,
-        service: Arc<ServiceItem>,
+        service_full_name: &str,
         actions: Vec<Action>,
-    ) {
+    ) -> anyhow::Result<()> {
+        let node = self.nodes.local_node()?;
+        let service = self.services.get_mut(service_full_name, Some(&node.id))?;
+
         actions.iter().for_each(|action| {
-            if !Registry::check_action_visibility(action, &node) {
+            if !Registry::check_action_visibility(action, node) {
                 return;
             }
             if node.local {
@@ -99,19 +102,17 @@ impl Registry {
                 //TODO: for remote services
                 return;
             }
-            let node = Arc::clone(&node);
-            let service = Arc::clone(&service);
+
             self.actions.add(node, service, action.to_owned());
             //TODO:
+            // service.add_action(action)
             //add the action to the service.
         });
+        Ok(())
     }
     fn create_private_action_endpoint(&self, action: Action) -> anyhow::Result<ActionEndpoint> {
-        let local_node = match &self.nodes.local_node {
-            Some(node) => node,
-            None => bail!("No local node available"),
-        };
-        let node = Arc::clone(local_node);
+        let node = self.nodes.local_node()?;
+
         todo!("add service to action")
         // let action_ep = ActionEndpoint::new(node, service, action);
         // Ok(action_ep)
@@ -168,20 +169,18 @@ impl Registry {
         todo!()
     }
 
-    fn get_local_node_info(&self, force: bool) -> Result<Value , RegistryError> {
-        if let None = self.nodes.local_node {
-            return Ok(self.regenerate_local_raw_info(None));
-        }
+    fn get_local_node_info(&self, force: bool) -> anyhow::Result<Value> {
+        // if let None = self.nodes.local_node() {
+        //     return Ok(self.regenerate_local_raw_info(None));
+        // }
         if force {
             return Ok(self.regenerate_local_raw_info(None));
         }
-        if let None = self.nodes.local_node {
-            return Err(RegistryError::NoLocalNodeFound);
-        }
-        let value = self.nodes.local_node.as_ref().unwrap().raw_info.to_owned();
+
+        let value = self.nodes.local_node()?.raw_info.to_owned();
         match value {
             Some(value) => Ok(value),
-            None => Err(RegistryError::NoLocalNodeFound),
+            None => bail!(RegistryError::NoLocalNodeFound),
         }
     }
     fn get_node_info(&self, node_id: &str) -> Option<Node> {
@@ -193,7 +192,7 @@ impl Registry {
     pub fn get_node_list(&self, only_available: bool, with_services: bool) -> Vec<&Node> {
         self.nodes.list(only_available, with_services)
     }
-    pub fn get_services_list(&self, opts: ListOptions) -> Vec<&Arc<ServiceItem>> {
+    pub fn get_services_list(&self, opts: ListOptions) -> Vec<&ServiceItem> {
         self.services.list(opts)
     }
     fn get_actions_list(&self, opts: ListOptions) -> Vec<&ActionEndpoint> {
@@ -207,13 +206,6 @@ impl Registry {
         todo!()
     }
 }
-use thiserror::Error;
-#[derive(Error, Debug)]
-enum RegistryError {
-    #[error("No local node found")]
-    NoLocalNodeFound,
-}
-
 #[cfg(test)]
 
 mod tests {}

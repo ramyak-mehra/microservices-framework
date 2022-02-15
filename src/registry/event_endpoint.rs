@@ -8,25 +8,22 @@ pub struct EventEndpoint {
 
 impl EndpointTrait for EventEndpoint {
     type Data = Event;
-    fn new(node: Arc<Node>, service: Arc<ServiceItem>, data: Self::Data) -> Self {
-        let endpoint = Endpoint::new(node, service);
+    fn update(&mut self, data: Self::Data) {
+        self.event = data;
+    }
+    fn new(node_id: &str, service: &ServiceItem, data: Self::Data) -> Self {
+        let endpoint = Endpoint::new(node_id, service);
         Self {
             endpoint,
 
             event: data,
         }
     }
-    fn node(&self) -> &Node {
-        &self.endpoint.node
+
+    fn node(&self) -> &str {
+        &self.endpoint.node_id
     }
 
-    fn service(&self) -> &ServiceItem {
-        &self.endpoint.service
-    }
-
-    fn update(&mut self, data: Self::Data) {
-        self.event = data;
-    }
     fn is_local(&self) -> bool {
         self.endpoint.local
     }
@@ -34,10 +31,10 @@ impl EndpointTrait for EventEndpoint {
         self.endpoint.state
     }
     fn id(&self) -> &str {
-        &self.endpoint.id
+        &self.endpoint.node_id
     }
     fn service_name(&self) -> &str {
-        &self.endpoint.service.name
+        &self.endpoint.service
     }
 
     fn ep_type(&self) -> EndpointType {
