@@ -1,19 +1,15 @@
 use anyhow::bail;
 
-use crate::service::ServiceSpec;
+use crate::{service::ServiceSpec, errors::RegistryError};
 
 use super::*;
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq , Default)]
 pub struct ServiceCatalog {
     services: Vec<ServiceItem>,
 }
 
 impl ServiceCatalog {
-    pub fn new() -> Self {
-        Self {
-            services: Vec::new(),
-        }
-    }
+    
     ///Add a new service
     pub fn add(&mut self, node: &Node, service: &ServiceSpec, local: bool) -> String {
         let service_item = ServiceItem::new(node, service, local);
@@ -27,10 +23,7 @@ impl ServiceCatalog {
             .services
             .iter()
             .find(|svc| svc.equals(full_name, node_id));
-        match svc {
-            Some(_) => true,
-            None => false,
-        }
+        svc.is_some()
     }
     pub fn get(&self, full_name: &str, node_id: Option<&str>) -> Option<&ServiceItem> {
         self.services
@@ -66,7 +59,7 @@ impl ServiceCatalog {
                 //     return false;
                 // }
 
-                return true;
+                true
             })
             .collect()
         // TODO:("implement grouping and all that stuff")
@@ -97,7 +90,7 @@ impl ServiceCatalog {
 
                 return false;
             }
-            return true;
+            true
         })
     }
 }

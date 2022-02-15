@@ -2,18 +2,13 @@ use std::collections::HashMap;
 
 use super::*;
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Default)]
 pub struct ActionCatalog {
     actions: ActionsMap,
 }
 
 impl ActionCatalog {
-    pub fn new() -> Self {
-        Self {
-            actions: HashMap::new(),
-        }
-    }
-   pub fn add(&mut self, node: &Node, service: &ServiceItem, action: Action) {
+    pub fn add(&mut self, node: &Node, service: &ServiceItem, action: Action) {
         let list = self.actions.get_mut(&action.name);
         match list {
             Some(list) => list.add(node, service, action),
@@ -37,7 +32,7 @@ impl ActionCatalog {
     }
     fn remove_by_service(&mut self, service: &ServiceItem) {
         self.actions.iter_mut().for_each(|item| {
-            let (key, el) = item;
+            let (_, el) = item;
             el.remove_by_service(service);
         });
     }
@@ -53,7 +48,7 @@ impl ActionCatalog {
             .iter()
             .filter(|item| {
                 let (name, ep_list) = item;
-                if opts.skip_internal && get_internal_service_regex_match(&name) {
+                if opts.skip_internal && get_internal_service_regex_match(name) {
                     return false;
                 }
                 if opts.only_local && !ep_list.has_local() {
@@ -70,15 +65,10 @@ impl ActionCatalog {
                         }
                     }
                 }
-                return true;
+                true
             })
             .collect();
-        let res = res
-            .values()
-            .map(|ep| {
-                return ep.to_owned();
-            })
-            .collect();
+        let res = res.values().map(|ep| ep.to_owned()).collect();
         res
     }
 }

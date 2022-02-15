@@ -83,15 +83,14 @@ pub struct ServiceSpec {
 impl Service {
     fn get_service_spec(&self) -> ServiceSpec {
         //TODO: do something about actions and events
-        let service_spec = ServiceSpec {
+        ServiceSpec {
             name: self.name.clone(),
             full_name: self.full_name.clone(),
             settings: self.get_public_settings(),
             version: self.version.clone(),
             actions: None,
             events: None,
-        };
-        service_spec
+        }
     }
 
     fn parse_service_schema(&mut self, schema: Schema) {
@@ -172,7 +171,7 @@ impl Service {
         let _result = self
             .broker_sender
             .send(ServiceBrokerMessage::RegisterLocalService(
-                Service::get_service_spec(&self),
+                Service::get_service_spec(self),
             ));
 
         info!("Service {} started.", self.full_name);
@@ -219,11 +218,11 @@ impl Service {
         todo!()
     }
 
-    async fn wait_for_services(&self, service_names: &Vec<String>, timeout: i64, interval: i64) {
+    async fn wait_for_services(&self, service_names: &[String], timeout: i64, interval: i64) {
         let _result = self
             .broker_sender
             .send(ServiceBrokerMessage::WaitForServices {
-                dependencies: service_names.clone(),
+                dependencies: service_names.to_vec(),
                 interval,
                 timeout,
             });
@@ -467,8 +466,8 @@ mod tests {
         let version = "1.0".to_string();
         let version = Some(&version);
         let full_name = Service::get_versioned_full_name(name, version);
-        assert_eq!(full_name , expected_full_name);
+        assert_eq!(full_name, expected_full_name);
         let full_name_2 = Service::get_versioned_full_name(name, None);
-        assert_eq!(full_name_2  , name);
-    }   
+        assert_eq!(full_name_2, name);
+    }
 }

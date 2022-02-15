@@ -1,12 +1,10 @@
 use std::{collections::HashMap, net::IpAddr, sync::Arc};
 
-use std::sync::RwLock;
-
 use anyhow::bail;
 
 use crate::registry::RegistryError;
 
-use super::{node, Client, Logger, Node, Registry};
+use super::{Client, Node};
 
 pub struct NodeCatalog {
     nodes: HashMap<String, Node>,
@@ -25,7 +23,7 @@ impl NodeCatalog {
         let client = Client {
             client_type: "rust".to_string(),
             lang_version: "1.56.1".to_string(),
-            version: version,
+            version,
         };
         let node = Node::new(node_id)
             .set_local(true)
@@ -46,10 +44,7 @@ impl NodeCatalog {
         self.nodes.insert(id.to_string(), node);
     }
     pub fn had_node(&self, id: &str) -> bool {
-        match self.nodes.get(id) {
-            Some(_) => true,
-            None => false,
-        }
+        self.nodes.get(id).is_some()
     }
     pub fn get_node(&self, id: &str) -> Option<&Node> {
         self.nodes.get(id)
@@ -100,10 +95,10 @@ impl NodeCatalog {
                 if only_available && !node.available {
                     return false;
                 }
-                if with_services && node.services_len() <= 0 {
+                if with_services && node.services_len() == 0 {
                     return false;
                 }
-                return true;
+                true
             })
             .collect()
     }
@@ -114,10 +109,10 @@ impl NodeCatalog {
                 if only_available && !node.available {
                     return false;
                 }
-                if with_services && node.services_len() <= 0 {
+                if with_services && node.services_len() == 0 {
                     return false;
                 }
-                return true;
+                true
             })
             .collect()
     }

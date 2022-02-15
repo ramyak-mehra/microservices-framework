@@ -6,9 +6,7 @@ use serde_json::{json, Value};
 use tokio::sync::{mpsc::Sender, oneshot};
 
 use crate::{
-    registry::{
-        service_item::ServiceItem, Action, ActionEndpoint, EndpointTrait, EndpointType, Event,
-    },
+    registry::{service_item::ServiceItem, Action, EndpointTrait, EndpointType, Event},
     HandlerResult, ServiceBroker, ServiceBrokerMessage,
 };
 
@@ -85,7 +83,7 @@ impl<E: EndpointTrait> Context<E> {
     }
 
     async fn call(&self, action_name: &str, params: Value, mut opts: Value) -> Result<()> {
-        let mut opts = opts.as_object();
+        let opts = opts.as_object();
         if let Some(opts) = opts {
             //TODO:set the parent context
             //opts.insert("parentCtx".to_string(), self.clone());
@@ -101,16 +99,14 @@ impl<E: EndpointTrait> Context<E> {
             bail!("Max call level error")
         }
 
-        let (sender, mut recv) = oneshot::channel::<HandlerResult>();
+        let (sender, recv) = oneshot::channel::<HandlerResult>();
 
-        let _result = self
-            .broker_sender
-            .send(ServiceBrokerMessage::Call {
-                action_name: action_name.to_string(),
-                params,
-                opts,
-                result_channel: sender,
-            });
+        let _result = self.broker_sender.send(ServiceBrokerMessage::Call {
+            action_name: action_name.to_string(),
+            params,
+            opts,
+            result_channel: sender,
+        });
         let result = recv.await?;
 
         //TODO:merge meta of the context object

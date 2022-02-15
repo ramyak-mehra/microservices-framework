@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use crate::INTERNAL_PREFIX;
 
 use super::*;
 #[derive(PartialEq, Eq, Clone)]
@@ -12,7 +12,7 @@ pub struct EndpointList<T: EndpointTrait + Clone> {
 
 impl<T: EndpointTrait + Clone> EndpointList<T> {
     pub fn new(name: String, group: Option<String>) -> Self {
-        let internal = name.starts_with("$");
+        let internal = name.starts_with(INTERNAL_PREFIX);
         let endpoints = Vec::new();
         let local_endpoints = Vec::new();
 
@@ -25,18 +25,14 @@ impl<T: EndpointTrait + Clone> EndpointList<T> {
         }
     }
 
-    pub fn add(&mut self, node: &Node, service:&ServiceItem, data: T::Data) {
+    pub fn add(&mut self, node: &Node, service: &ServiceItem, data: T::Data) {
         let entry = self
             .endpoints
             .iter_mut()
             .find(|x| x.service_name() == service.unique_name());
-
-        match entry {
-            Some(found) => {
-                found.update(data);
-                return;
-            }
-            None => {}
+        if let Some(entry) = entry {
+            entry.update(data);
+            return;
         }
 
         let ep = T::new(&node.id, service, data);
@@ -67,10 +63,10 @@ impl<T: EndpointTrait + Clone> EndpointList<T> {
                 return true;
             }
         }
-        return false;
+        false
     }
     pub fn has_local(&self) -> bool {
-        self.local_endpoints.len() > 0
+        !self.local_endpoints.is_empty()
     }
 
     fn update_local_endpoints(&mut self) {
@@ -94,10 +90,7 @@ impl<T: EndpointTrait + Clone> EndpointList<T> {
             .find(|e| e.id() == node_id && e.is_available())
     }
     fn has_node_id(&self, node_id: &str) -> bool {
-        match self.endpoints.iter().find(|e| e.id() == node_id) {
-            Some(_) => true,
-            None => false,
-        }
+        self.endpoints.iter().find(|e| e.id() == node_id).is_some()
     }
     pub fn remove_by_service(&mut self, service: &ServiceItem) {
         self.endpoints.retain(|ep| {

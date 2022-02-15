@@ -60,7 +60,7 @@ impl ServiceBroker {
 
     fn destroy_service(&mut self, name: &str, version: &str) -> Result<()> {
         let service_index = self.get_local_service_index(name, version);
-        if let None = service_index {
+        if service_index.is_none() {
             bail!(
                 "no service with the name {} and version {} found",
                 name,
@@ -86,7 +86,7 @@ impl ServiceBroker {
     }
 
     fn services_changed(&self, local_service: bool) {
-        if (self.started && local_service) {
+        if self.started && local_service {
             todo!("notifify remote nodes")
         }
     }
@@ -95,7 +95,7 @@ impl ServiceBroker {
             if s.name == name && s.version == version {
                 return true;
             }
-            return false;
+             false
         })
     }
 }
@@ -130,11 +130,61 @@ impl PartialEq for ServiceBrokerMessage {
         match (self, other) {
             (Self::AddLocalService(l0), Self::AddLocalService(r0)) => l0 == r0,
             (Self::RegisterLocalService(l0), Self::RegisterLocalService(r0)) => l0 == r0,
-            (Self::WaitForServices { dependencies: l_dependencies, timeout: l_timeout, interval: l_interval }, Self::WaitForServices { dependencies: r_dependencies, timeout: r_timeout, interval: r_interval }) => l_dependencies == r_dependencies && l_timeout == r_timeout && l_interval == r_interval,
-            (Self::Broadcast { event_name: l_event_name, data: l_data, opts: l_opts }, Self::Broadcast { event_name: r_event_name, data: r_data, opts: r_opts }) => l_event_name == r_event_name && l_data == r_data && l_opts == r_opts,
-            (Self::Emit { event_name: l_event_name, data: l_data, opts: l_opts }, Self::Emit { event_name: r_event_name, data: r_data, opts: r_opts }) => l_event_name == r_event_name && l_data == r_data && l_opts == r_opts,
-            (Self::Call { action_name: l_action_name, params: l_params, opts: l_opts, result_channel: l_result_channel }, Self::Call { action_name: r_action_name, params: r_params, opts: r_opts, result_channel: r_result_channel }) => l_action_name == r_action_name && l_params == r_params && l_opts == r_opts,
-            _ => false
+            (
+                Self::WaitForServices {
+                    dependencies: l_dependencies,
+                    timeout: l_timeout,
+                    interval: l_interval,
+                },
+                Self::WaitForServices {
+                    dependencies: r_dependencies,
+                    timeout: r_timeout,
+                    interval: r_interval,
+                },
+            ) => {
+                l_dependencies == r_dependencies
+                    && l_timeout == r_timeout
+                    && l_interval == r_interval
+            }
+            (
+                Self::Broadcast {
+                    event_name: l_event_name,
+                    data: l_data,
+                    opts: l_opts,
+                },
+                Self::Broadcast {
+                    event_name: r_event_name,
+                    data: r_data,
+                    opts: r_opts,
+                },
+            ) => l_event_name == r_event_name && l_data == r_data && l_opts == r_opts,
+            (
+                Self::Emit {
+                    event_name: l_event_name,
+                    data: l_data,
+                    opts: l_opts,
+                },
+                Self::Emit {
+                    event_name: r_event_name,
+                    data: r_data,
+                    opts: r_opts,
+                },
+            ) => l_event_name == r_event_name && l_data == r_data && l_opts == r_opts,
+            (
+                Self::Call {
+                    action_name: l_action_name,
+                    params: l_params,
+                    opts: l_opts,
+                    result_channel: l_result_channel,
+                },
+                Self::Call {
+                    action_name: r_action_name,
+                    params: r_params,
+                    opts: r_opts,
+                    result_channel: r_result_channel,
+                },
+            ) => l_action_name == r_action_name && l_params == r_params && l_opts == r_opts,
+            _ => false,
         }
     }
 }

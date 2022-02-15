@@ -1,7 +1,7 @@
 use crate::{service::ServiceSpec, ServiceBroker, ServiceBrokerMessage};
 
 use super::*;
-use anyhow::{bail, Error};
+use anyhow::bail;
 use serde_json::Value;
 use tokio::sync::mpsc::Sender;
 
@@ -23,10 +23,10 @@ pub struct Registry {
 impl Registry {
     pub fn new(broker: Arc<ServiceBroker>, broker_sender: Sender<ServiceBrokerMessage>) -> Self {
         let logger = &broker.logger;
-        let logger = Arc::clone(&logger);
+        let logger = Arc::clone(logger);
         let nodes = NodeCatalog::new();
         let services = ServiceCatalog::new();
-        let actions = ActionCatalog::new();
+        let actions = ActionCatalog::default();
         Registry {
             logger,
             broker_sender,
@@ -98,11 +98,10 @@ impl Registry {
             }
             if node.local {
                 //TODO:stuff with middleware and handlers.
-            } else if let Some(_) = self.broker.transit {
+            } else if self.broker.transit.is_some() {
                 //TODO: for remote services
                 return;
             }
-
             self.actions.add(node, service, action.to_owned());
             //TODO:
             // service.add_action(action)
@@ -165,7 +164,7 @@ impl Registry {
         todo!()
     }
 
-    fn regenerate_local_raw_info(&self, incSeq: Option<bool>) -> Value {
+    fn regenerate_local_raw_info(&self, inc_seq: Option<bool>) -> Value {
         todo!()
     }
 

@@ -1,9 +1,8 @@
-use std::{net::IpAddr, sync::Arc};
+use std::{net::IpAddr };
 
 use chrono::Duration;
 use serde_json::Value;
 
-use super::ServiceItem;
 
 #[derive(PartialEq, Eq, Clone)]
 pub struct Node {
@@ -35,7 +34,7 @@ pub struct Node {
 impl Node {
     pub fn new(id: String) -> Self {
         Self {
-            id: id,
+            id,
             instance_id: None,
             available: true,
             local: false,
