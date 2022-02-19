@@ -1,18 +1,19 @@
-use crate::{service::ServiceSpec, ServiceBroker, ServiceBrokerMessage};
+use crate::{errors::RegistryError, service::ServiceSpec, ServiceBroker, ServiceBrokerMessage};
 
 use super::*;
 use anyhow::bail;
 use serde_json::Value;
-use tokio::sync::mpsc::Sender;
+use tokio::sync::mpsc::UnboundedSender;
+#[derive(Debug)]
 
 pub struct Registry {
-    pub logger: Arc<Logger>,
-    broker_sender: Sender<ServiceBrokerMessage>,
+    broker_sender: UnboundedSender<ServiceBrokerMessage>,
     broker: Arc<ServiceBroker>,
     nodes: NodeCatalog,
     services: ServiceCatalog,
-    actions: ActionCatalog,
+    pub(crate) actions: ActionCatalog,
     /*
+    events
     metrics
     strategy factor
     discoverer
@@ -21,14 +22,22 @@ pub struct Registry {
     */
 }
 impl Registry {
-    pub fn new(broker: Arc<ServiceBroker>, broker_sender: Sender<ServiceBrokerMessage>) -> Self {
-        let logger = &broker.logger;
-        let logger = Arc::clone(logger);
-        let nodes = NodeCatalog::new();
-        let services = ServiceCatalog::new();
+    pub fn new(
+        broker: Arc<ServiceBroker>,
+        broker_sender: UnboundedSender<ServiceBrokerMessage>,
+    ) -> Self {
+        //TODO:get the library version for the client
+
+        let mut nodes = NodeCatalog::new();
+        nodes.create_local_node(
+            "1.0".to_string(),
+            broker.node_id.clone(),
+            broker.instance.clone(),
+            broker.options.metadata.clone(),
+        );
+        let services = ServiceCatalog::default();
         let actions = ActionCatalog::default();
         Registry {
-            logger,
             broker_sender,
             broker,
             nodes,
@@ -59,7 +68,7 @@ impl Registry {
 
             let service_full_name = self.services.add(node, &svc, true);
             if let Some(actions) = svc.actions {
-                self.register_actions(&service_full_name, actions);
+                self.register_actions(&service_full_name, actions)?;
             }
             if let Some(events) = svc.events {
                 self.register_events();
@@ -126,10 +135,10 @@ impl Registry {
         &self,
         action_name: &str,
         node_id: &str,
-    ) -> Option<&EndpointList<ActionEndpoint>> {
+    ) -> Option<&ActionEndpoint> {
         let list = self.actions.get(action_name);
         if let Some(list) = list {
-            list.get_endpoint_by_node_id(node_id);
+            return list.get_endpoint_by_node_id(node_id);
         }
         None
     }
@@ -168,7 +177,7 @@ impl Registry {
         todo!()
     }
 
-    fn get_local_node_info(&self, force: bool) -> anyhow::Result<Value> {
+    pub fn get_local_node_info(&self, force: bool) -> anyhow::Result<Value> {
         // if let None = self.nodes.local_node() {
         //     return Ok(self.regenerate_local_raw_info(None));
         // }
@@ -194,7 +203,7 @@ impl Registry {
     pub fn get_services_list(&self, opts: ListOptions) -> Vec<&ServiceItem> {
         self.services.list(opts)
     }
-    fn get_actions_list(&self, opts: ListOptions) -> Vec<&ActionEndpoint> {
+    fn get_action_list(&self, opts: ListOptions) -> Vec<&ActionEndpoint> {
         //self.actions.list(opts)
         todo!()
     }

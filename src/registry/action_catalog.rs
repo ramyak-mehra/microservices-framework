@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use super::*;
 
-#[derive(PartialEq, Eq, Default)]
+#[derive(PartialEq, Eq, Default, Debug, Clone)]
 pub struct ActionCatalog {
     actions: ActionsMap,
 }

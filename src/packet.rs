@@ -1,4 +1,3 @@
-
 enum PacketType {
     Unknown,
     Event,

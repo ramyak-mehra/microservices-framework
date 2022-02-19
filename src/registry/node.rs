@@ -1,23 +1,22 @@
-use std::{net::IpAddr };
+use std::net::IpAddr;
 
 use chrono::Duration;
 use serde_json::Value;
 
-
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub struct Node {
     pub id: String,
     instance_id: Option<String>,
     pub available: bool,
     pub local: bool,
     last_heartbeat_time: Duration,
+    metadata : Value,
     /* feields that need to be added later.
     config
 
-    metadata
     */
     client: Option<Client>,
-    ip_list: Vec<IpAddr>,
+    ip_list: Vec<String>,
     port: Option<u16>,
     hostname: Option<String>,
     udp_address: Option<IpAddr>,
@@ -40,6 +39,8 @@ impl Node {
             local: false,
             client: None,
             raw_info: None,
+            metadata : Value::Null,
+            //TODO:
             /*
             change this later with actual process uptime.
             */
@@ -83,7 +84,7 @@ impl Node {
         self.local = value;
         self
     }
-    pub fn set_ip_list(mut self, ip_list: Vec<IpAddr>) -> Self {
+    pub fn set_ip_list(mut self, ip_list: Vec<String>) -> Self {
         self.ip_list = ip_list;
         self
     }
@@ -103,8 +104,12 @@ impl Node {
         self.seq = seq;
         self
     }
+    pub fn set_metadata(mut self , metadata:Value)->Self{
+        self.metadata = metadata;
+        self
+    }
 }
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 
 pub struct Client {
     pub(crate) client_type: String,

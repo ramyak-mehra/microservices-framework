@@ -1,15 +1,14 @@
 use anyhow::bail;
 
-use crate::{service::ServiceSpec, errors::RegistryError};
+use crate::{errors::RegistryError, service::ServiceSpec};
 
 use super::*;
-#[derive(PartialEq, Eq , Default)]
+#[derive(PartialEq, Eq, Default, Debug)]
 pub struct ServiceCatalog {
     services: Vec<ServiceItem>,
 }
 
 impl ServiceCatalog {
-    
     ///Add a new service
     pub fn add(&mut self, node: &Node, service: &ServiceSpec, local: bool) -> String {
         let service_item = ServiceItem::new(node, service, local);

@@ -1,30 +1,36 @@
 use super::*;
 use std::sync::Arc;
 
-struct RoundRobinStrategy {
-    registry: Arc<Registry>,
-    broker: Arc<ServiceBroker>,
-    opts: StrategyOpts,
+#[derive(Debug)]
+pub struct RoundRobinStrategy {
     counter: usize,
 }
 
 impl RoundRobinStrategy {
-    // fn new() -> Self {}
-}
-impl Strategy for RoundRobinStrategy {
-    fn new(registry: Arc<Registry>, broker: Arc<ServiceBroker>, opts: StrategyOpts) -> Self {
-        Self {
-            broker,
-            registry,
-            opts,
-            counter: 0,
-        }
+    pub fn new() -> Self {
+        RoundRobinStrategy { counter: 0 }
     }
-    fn select<'a>(
+}
+impl Default for RoundRobinStrategy {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Strategy for RoundRobinStrategy {
+    // fn new(registry: Arc<Registry>, broker: Arc<ServiceBroker>, opts: StrategyOpts) -> Self {
+    //     Self {
+    //         broker,
+    //         registry,
+    //         opts,
+    //         counter: 0,
+    //     }
+    // }
+    fn select<'a, E: EndpointTrait>(
         &mut self,
-        list: Vec<&'a ActionEndpoint>,
-        ctx: Option<Context>,
-    ) -> Option<&'a ActionEndpoint> {
+        list: Vec<&'a E>,
+        ctx: Option<&Context>,
+    ) -> Option<&'a E> {
         if self.counter >= list.len() {
             self.counter = 0;
         }

@@ -1,4 +1,3 @@
-
 trait LoggerTrait {
     fn init();
     fn stop();

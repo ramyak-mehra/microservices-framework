@@ -1,6 +1,6 @@
 use super::*;
 
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub struct ActionEndpoint {
     endpoint: Endpoint,
     pub action: Action,

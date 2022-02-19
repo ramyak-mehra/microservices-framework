@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    registry::{Action, Event},
+    registry::{Action, ActionHandler, Event},
     ServiceBrokerMessage,
 };
 use log::info;
@@ -12,13 +12,13 @@ pub struct Service {
     pub name: String,
     pub full_name: String,
     pub version: String,
-    settings: HashMap<String, String>,
-    schema: Schema,
-    original_schema: Option<Schema>,
-    metadata: HashMap<String, String>,
+    pub(crate) settings: HashMap<String, String>,
+    pub(crate) schema: Schema,
+    pub(crate) original_schema: Option<Schema>,
+    pub(crate) metadata: HashMap<String, String>,
     pub actions: Option<Vec<Action>>,
     pub events: Option<HashMap<String, Event>>,
-    broker_sender: UnboundedSender<ServiceBrokerMessage>,
+    pub(crate) broker_sender: UnboundedSender<ServiceBrokerMessage>,
 }
 
 impl PartialEq for Service {
@@ -36,23 +36,23 @@ impl PartialEq for Service {
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
-struct Schema {
-    mixins: Option<Vec<SchemaMixins>>,
-    actions: Option<Vec<SchemaActions>>,
-    events: Option<Vec<SchemaEvents>>,
-    merged: SchemaMerged,
-    name: String,
-    version: Option<String>,
-    settings: HashMap<String, String>,
-    metadata: Option<HashMap<String, String>>,
-    created: Option<fn()>,
-    started: Option<fn()>,
-    stopped: Option<fn()>,
-    dependencies: Option<Vec<String>>,
+pub struct Schema {
+    pub(crate) mixins: Option<Vec<SchemaMixins>>,
+    pub(crate) actions: Option<Vec<SchemaActions>>,
+    pub(crate) events: Option<Vec<SchemaEvents>>,
+    pub(crate) merged: SchemaMerged,
+    pub(crate) name: String,
+    pub(crate) version: Option<String>,
+    pub(crate) settings: HashMap<String, String>,
+    pub(crate) metadata: Option<HashMap<String, String>>,
+    pub(crate) created: Option<fn()>,
+    pub(crate) started: Option<fn()>,
+    pub(crate) stopped: Option<fn()>,
+    pub(crate) dependencies: Option<Vec<String>>,
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
-struct SchemaMixins {}
+pub struct SchemaMixins {}
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct SchemaActions {
@@ -61,9 +61,9 @@ pub struct SchemaActions {
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
-struct SchemaEvents {}
+pub struct SchemaEvents {}
 #[derive(PartialEq, Eq, Clone, Debug)]
-enum SchemaMerged {
+pub enum SchemaMerged {
     MergedFn(fn()),
     MergedFnVec(Vec<fn()>),
 }
@@ -88,7 +88,7 @@ impl Service {
             full_name: self.full_name.clone(),
             settings: self.get_public_settings(),
             version: self.version.clone(),
-            actions: None,
+            actions: self.actions.clone(),
             events: None,
         }
     }
@@ -193,7 +193,7 @@ impl Service {
         todo!("call service stopped middleware");
     }
 
-    fn create_action(&self, action_def: fn(), name: &str) -> Action {
+    fn create_action(&self, action_def: ActionHandler, name: &str) -> Action {
         let mut action = Action::new(name.to_string(), action_def);
         let name_prefix = self.settings.get("$noServiceNamePrefix");
         if let Some(name_prefix) = name_prefix {
@@ -203,8 +203,6 @@ impl Service {
             }
         }
         //TODO add caching settings from settins
-        //TODO see if it is even necessary to give action access to the service.
-        // action = action.set_service(self.clone());
         action
     }
 
@@ -228,7 +226,7 @@ impl Service {
             });
     }
 
-    fn get_versioned_full_name(name: &str, version: Option<&String>) -> String {
+    pub fn get_versioned_full_name(name: &str, version: Option<&String>) -> String {
         let mut name = name.to_string();
         if let Some(v) = version {
             name = format!("{}.{}", v, name);
@@ -239,6 +237,12 @@ impl Service {
 #[cfg(test)]
 mod tests {
     use tokio::sync::mpsc::{self, UnboundedSender};
+
+    use crate::{
+        context::Context,
+        registry::{ActionEndpoint, Payload},
+        HandlerResult,
+    };
 
     use super::*;
     fn test_merge_func() {
@@ -253,8 +257,11 @@ mod tests {
     fn test_stop_func() {
         println!("test stop func");
     }
-    fn action_func() {
+    fn action_func(context: Context, payload: Option<Payload>) -> HandlerResult {
         println!("action_func");
+        println!("context: {:?}", context);
+        println!("payload: {:?}", payload);
+        HandlerResult { data: 1 }
     }
 
     fn get_test_schema(dependencies: Option<Vec<String>>) -> Schema {

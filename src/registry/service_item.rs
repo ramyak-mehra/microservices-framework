@@ -2,7 +2,7 @@ use crate::service::ServiceSpec;
 
 use super::*;
 
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub struct ServiceItem {
     pub name: String,
     pub node: String,

@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use super::service::Service;
-use crate::strategies::Strategy;
+use crate::{context::Context, strategies::Strategy, HandlerResult};
 use action_catalog::ActionCatalog;
 pub use action_endpoint::ActionEndpoint;
 pub use endpoint_list::EndpointList;
@@ -20,6 +20,7 @@ pub use event_endpoint::EventEndpoint;
 use lazy_static::lazy_static;
 pub use node::{Client, Node};
 use node_catalog::NodeCatalog;
+
 use regex::Regex;
 pub use registry::Registry;
 use service_catalog::ServiceCatalog;
@@ -35,21 +36,25 @@ fn get_internal_service_regex_match(text: &str) -> bool {
     RE.is_match(text)
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Debug)]
 pub struct Logger {}
 
-trait FnType {}
+pub type ActionHandler = fn(Context, Option<Payload>) -> HandlerResult;
+
+#[derive(Default, Debug, PartialEq, Eq, Clone)]
+pub struct Payload {}
 
 #[derive(PartialEq, Eq, Clone, Debug)]
+
 pub struct Action {
     pub name: String,
-    visibility: Visibility,
-    handler: fn(),
+    pub(crate) visibility: Visibility,
+    pub handler: ActionHandler,
     // service: Option<Service>,
 }
 
 impl Action {
-    pub fn new(name: String, handler: fn()) -> Self {
+    pub fn new(name: String, handler: ActionHandler) -> Self {
         Self {
             name,
             visibility: Visibility::Protected,
@@ -64,15 +69,16 @@ impl Action {
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
-enum Visibility {
+pub enum Visibility {
     Published,
     Public,
     Protected,
     Private,
 }
 #[derive(PartialEq, Eq, Clone, Debug)]
-pub struct Event {}
-impl FnType for Event {}
+pub struct Event {
+    pub event_name: String,
+}
 
 ///Endpoint trait for endpoint list
 pub trait EndpointTrait {
@@ -85,10 +91,10 @@ pub trait EndpointTrait {
     fn is_available(&self) -> bool;
     fn id(&self) -> &str;
     fn service_name(&self) -> &str;
-    fn ep_type(&self)->EndpointType;
+    fn ep_type(&self) -> EndpointType;
 }
 
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 struct Endpoint {
     service: String,
     state: bool,
@@ -125,12 +131,4 @@ pub struct ListOptions {
     with_actions: bool,
     with_events: bool,
     grouping: bool,
-}
-use thiserror::Error;
-#[derive(Error, Debug)]
-enum RegistryError {
-    #[error("No local node found")]
-    NoLocalNodeFound,
-    #[error("No service found")]
-    NoServiceItemFound,
 }

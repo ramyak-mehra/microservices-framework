@@ -1,19 +1,14 @@
-use std::sync::Arc;
-
-use crate::registry::{ActionEndpoint, Registry , };
-use crate::ServiceBroker;
 mod round_robin;
-
-
+use crate::context::Context;
+use crate::registry::EndpointTrait;
+pub use round_robin::RoundRobinStrategy;
 pub trait Strategy {
-    fn new(registry: Arc<Registry>, broker: Arc<ServiceBroker>, opts: StrategyOpts) -> Self;
-    fn select<'a>(
+    // fn new(registry: Arc<Registry>, broker: Arc<ServiceBroker>, opts: StrategyOpts) -> Self;
+    fn select<'a, E: EndpointTrait>(
         &mut self,
-        list: Vec<&'a ActionEndpoint>,
-        ctx: Option<Context>,
-    ) -> Option<&'a ActionEndpoint>;
+        list: Vec<&'a E>,
+        ctx: Option<&Context>,
+    ) -> Option<&'a E>;
 }
 
-pub struct Context {}
-
-pub struct StrategyOpts{}
+pub struct StrategyOpts {}
