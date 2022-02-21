@@ -271,7 +271,7 @@ impl ServiceBroker {
                 ctx.request_id
             )
         }
-        task::spawn(async move {
+        task::spawn( async move {
             let result = (endpoint.action.handler)(ctx, Some(params));
             let _ = sender.send(Ok(result));
         });
@@ -481,9 +481,10 @@ impl PartialEq for ServiceBrokerMessage {
     }
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(Debug)]
 pub struct HandlerResult {
-    pub(crate) data: u32,
+    // pub(crate) data: u32,
+    pub(crate) data : Box<dyn Any + Send + Sync>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -520,10 +521,10 @@ mod tests {
         println!("test stop func");
     }
     fn action_func(context: Context, payload: Option<Payload>) -> HandlerResult {
-        println!("action_func");
 
         let data = fibonacci(40);
-        HandlerResult { data }
+        
+        HandlerResult {data: Box::new(data) }
     }
 
     fn get_test_broker(
@@ -681,6 +682,7 @@ mod tests {
                             result_channel: one_sender,
                         });
                         let _result = recv.await;
+                        println!("{:?}" , _result);
                     });
                     jhs.push(jh);
                 }

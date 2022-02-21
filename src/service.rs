@@ -261,7 +261,7 @@ mod tests {
         println!("action_func");
         println!("context: {:?}", context);
         println!("payload: {:?}", payload);
-        HandlerResult { data: 1 }
+        HandlerResult { data: Box::new(1) }
     }
 
     fn get_test_schema(dependencies: Option<Vec<String>>) -> Schema {
