@@ -29,3 +29,7 @@ pub(crate) fn ip_list() -> Vec<String> {
         .map(|ip| ip.to_string())
         .collect()
 }
+pub(crate) fn service_from_action(action_name: &str) -> String {
+    let service: Vec<&str> = action_name.split('.').collect();
+    service.get(0).unwrap().to_string()
+}

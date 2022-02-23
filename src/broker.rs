@@ -68,16 +68,15 @@ pub struct BrokerOptions {
     wait_for_neighbours_interval: Duration,
     dont_wait_for_neighbours: bool,
     strategy_factory: RwLock<RoundRobinStrategy>,
-   pub metadata : Value
-    /*
-    discover_node_id : fn()->String,
-    metrics bool
-    metric
-    middleware
-    loglevel
-    logformat
-    transporter factory
-    */
+    pub metadata: Value, /*
+                         discover_node_id : fn()->String,
+                         metrics bool
+                         metric
+                         middleware
+                         loglevel
+                         logformat
+                         transporter factory
+                         */
 }
 
 impl Default for BrokerOptions {
@@ -99,7 +98,8 @@ impl Default for BrokerOptions {
             metrics_rate: 1.0,
             max_call_level: 100,
             wait_for_neighbours_interval: Duration::milliseconds(200),
-            strategy_factory: RwLock::new(RoundRobinStrategy::new()),metadata:Value::Null
+            strategy_factory: RwLock::new(RoundRobinStrategy::new()),
+            metadata: Value::Null,
         }
     }
 }
@@ -109,7 +109,7 @@ impl Default for BrokerOptions {
 pub struct ServiceBroker {
     reciever: UnboundedReceiver<ServiceBrokerMessage>,
     pub(crate) sender: UnboundedSender<ServiceBrokerMessage>,
-    started: bool,
+   pub(crate) started: bool,
     namespace: Option<String>,
     metdata: Payload,
     pub node_id: String,
@@ -271,7 +271,7 @@ impl ServiceBroker {
                 ctx.request_id
             )
         }
-        task::spawn( async move {
+        task::spawn_blocking( move || {
             let result = (endpoint.action.handler)(ctx, Some(params));
             let _ = sender.send(Ok(result));
         });
@@ -334,10 +334,10 @@ impl ServiceBroker {
         }
     }
 
-    fn get_local_action_endpoint(
+    pub fn get_local_action_endpoint(
         &self,
         action_name: &str,
-        ctx: &Context,
+        ctx:&Context,
     ) -> anyhow::Result<&ActionEndpoint> {
         //Find action endpoints by name.
         let ep_list = self
@@ -399,6 +399,11 @@ pub enum ServiceBrokerMessage {
         interval: i64,
     },
     Broadcast {
+        event_name: String,
+        data: Value,
+        opts: Value,
+    },
+    BroadcastLocal {
         event_name: String,
         data: Value,
         opts: Value,
@@ -475,6 +480,7 @@ impl PartialEq for ServiceBrokerMessage {
                     result_channel: r_result_channel,
                 },
             ) => l_action_name == r_action_name && l_params == r_params && l_opts == r_opts,
+            //TODO: broadcast local
             (Self::Close, Self::Close) => true,
             _ => false,
         }
@@ -484,7 +490,7 @@ impl PartialEq for ServiceBrokerMessage {
 #[derive(Debug)]
 pub struct HandlerResult {
     // pub(crate) data: u32,
-    pub(crate) data : Box<dyn Any + Send + Sync>,
+    pub(crate) data: Box<dyn Any + Send + Sync>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -521,10 +527,11 @@ mod tests {
         println!("test stop func");
     }
     fn action_func(context: Context, payload: Option<Payload>) -> HandlerResult {
-
         let data = fibonacci(40);
-        
-        HandlerResult {data: Box::new(data) }
+
+        HandlerResult {
+            data: Box::new(data),
+        }
     }
 
     fn get_test_broker(
@@ -682,11 +689,11 @@ mod tests {
                             result_channel: one_sender,
                         });
                         let _result = recv.await;
-                        println!("{:?}" , _result);
+                        println!("{:?}", _result);
                     });
                     jhs.push(jh);
                 }
-                for jh in jhs{
+                for jh in jhs {
                     jh.await;
                 }
                 let end = Local::now();

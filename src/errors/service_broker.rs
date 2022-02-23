@@ -11,4 +11,6 @@ pub enum ServiceBrokerError {
         action_name: String,
         node_id: String,
     },
+    #[error("Broker is disconnected")]
+    BrokerDisconnectedError,
 }

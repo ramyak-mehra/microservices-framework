@@ -10,38 +10,41 @@ use tokio::sync::{
 
 use crate::{
     broker::{BrokerOptions, CallOptions},
-    registry::{service_item::ServiceItem, Action, EndpointTrait, EndpointType, Event, Payload},
+    registry::{
+        service_item::ServiceItem, Action, ActionEndpoint, EndpointTrait, EndpointType, Event,
+        Payload,
+    },
     utils, HandlerResult, ServiceBroker, ServiceBrokerMessage,
 };
 #[derive(Debug, Clone)]
 
-struct ContextOptions {
-    timeout: Option<i64>,
-    retries: Option<usize>,
+pub struct ContextOptions {
+    pub timeout: Option<i64>,
+    pub retries: Option<usize>,
 }
 
 #[derive(Debug)]
 pub struct Context {
-    id: String,
+    pub id: String,
     pub request_id: Option<String>,
     broker_sender: UnboundedSender<ServiceBrokerMessage>,
     action: Option<String>,
     event: Option<String>,
-    parent_id: Option<String>,
+    pub parent_id: Option<String>,
     event_groups: Option<Vec<String>>,
     event_type: EventType,
     pub params: Option<Payload>,
-    meta: Payload,
-    caller: Option<String>,
+    pub meta: Payload,
+    pub caller: Option<String>,
     locals: Option<Payload>,
-    node_id: Option<String>,
+    pub node_id: Option<String>,
 
-    tracing: bool,
-    level: usize,
+    pub tracing: bool,
+    pub level: usize,
 
     service: String,
 
-    options: ContextOptions,
+    pub options: ContextOptions,
     parent_ctx: Option<Box<Context>>,
     /*
     tracing
@@ -65,6 +68,7 @@ enum EventType {
 
 impl Context {
     pub fn new(broker: &ServiceBroker, service: String) -> Self {
+        //TODO:handle tracing
         let id = utils::generate_uuid();
         let request_id = id.clone();
         let meta = Payload {};
@@ -120,8 +124,7 @@ impl Context {
 
         let mut caller = action.to_string();
 
-        let service: Vec<&str> = caller.split('.').collect();
-        let service = service.get(0).unwrap().to_string();
+        let service = utils::service_from_action(&caller);
         Self {
             id,
             request_id: Some(request_id),
@@ -150,6 +153,18 @@ impl Context {
     }
     pub fn node_id(&self) -> &String {
         self.node_id.as_ref().unwrap()
+    }
+
+    pub fn set_endpoint<E: EndpointTrait>(
+        &mut self,
+        endpoint: &E,
+        action: Option<String>,
+        event: Option<String>,
+    ) {
+        self.node_id = Some(endpoint.id().to_string());
+        self.service = endpoint.service_name().to_string();
+        self.action = action;
+        self.event = event;
     }
 
     async fn call(

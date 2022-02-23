@@ -23,6 +23,7 @@ use node_catalog::NodeCatalog;
 
 use regex::Regex;
 pub use registry::Registry;
+use serde::Serialize;
 use service_catalog::ServiceCatalog;
 use service_item::ServiceItem;
 // pub use event_endpoint::EventEndpoint;
@@ -41,7 +42,7 @@ pub struct Logger {}
 
 pub type ActionHandler = fn(Context, Option<Payload>) -> HandlerResult;
 
-#[derive(Default, Debug, PartialEq, Eq, Clone)]
+#[derive(Default, Debug, PartialEq, Eq, Clone , Serialize)]
 pub struct Payload {}
 
 #[derive(PartialEq, Eq, Clone, Debug)]

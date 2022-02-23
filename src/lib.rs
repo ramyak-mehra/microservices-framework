@@ -7,6 +7,8 @@ pub mod registry;
 pub mod service;
 pub mod strategies;
 pub mod utils;
+pub mod transporter;
+pub mod constants;
 pub use broker::HandlerResult;
 pub use broker::ServiceBroker;
 pub use broker::ServiceBrokerMessage;
