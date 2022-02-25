@@ -29,10 +29,11 @@ pub struct Context {
     pub request_id: Option<String>,
     broker_sender: UnboundedSender<ServiceBrokerMessage>,
     action: Option<String>,
-    event: Option<String>,
+    pub event: Option<String>,
+    pub event_name: Option<String>,
     pub parent_id: Option<String>,
-    event_groups: Option<Vec<String>>,
-    event_type: EventType,
+    pub event_groups: Option<Vec<String>>,
+    pub event_type: EventType,
     pub params: Option<Payload>,
     pub meta: Payload,
     pub caller: Option<String>,
@@ -46,11 +47,11 @@ pub struct Context {
 
     pub options: ContextOptions,
     parent_ctx: Option<Box<Context>>,
+    pub need_ack: bool,
     /*
     tracing
     span
     span_stack
-    need_ack
     ack_id
     startTime = null;
     startHrTime = null;
@@ -61,7 +62,7 @@ pub struct Context {
     cached_result: bool,
 }
 #[derive(Debug)]
-enum EventType {
+pub enum EventType {
     Emit,
     Broadcast,
 }
@@ -96,6 +97,8 @@ impl Context {
             cached_result: false,
             service: service,
             params: None,
+            event_name: None,
+            need_ack:false
         }
     }
 
@@ -145,6 +148,8 @@ impl Context {
             cached_result: false,
             service: service,
             params: Some(params),
+            event_name: None,
+            need_ack:self.need_ack
         }
     }
 

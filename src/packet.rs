@@ -2,7 +2,7 @@ use crate::{errors::PacketError, registry::Payload};
 use anyhow::bail;
 use serde::Serialize;
 use serde_json::*;
-use std::fmt::Display;
+use std::{any, fmt::Display};
 #[derive(Debug, Clone)]
 pub enum PacketType {
     Unknown,
@@ -18,6 +18,7 @@ pub enum PacketType {
     GossipReq,
     GossipRes,
     GossipHello,
+    Null,
 }
 
 impl Display for PacketType {
@@ -42,6 +43,7 @@ impl From<PacketType> for String {
             PacketType::GossipReq => "GOSSIP_REQ".to_string(),
             PacketType::GossipRes => "GOSSIP_RES".to_string(),
             PacketType::GossipHello => "GOSSIP_HELLO".to_string(),
+            PacketType::Null => "NULL".to_string(),
         }
     }
 }
@@ -52,55 +54,56 @@ impl PartialEq for PacketType {
     }
 }
 
+pub(crate) trait PacketPayload
+where
+    Self: Sized,
+{
+    fn tipe(&self) -> PacketType;
+    fn event_payload(mut self) -> anyhow::Result<PayloadEvent> {
+        bail!("Not an event payload")
+    }
+    fn request_paylaod(mut self) -> anyhow::Result<PayloadRequest> {
+        bail!("Not a request payload")
+    }
+}
+
 #[derive(Debug, Clone)]
-pub(crate) struct Packet {
+pub(crate) struct Packet<P: PacketPayload> {
     //type
     pub(crate) tipe: PacketType,
     pub(crate) target: Option<String>,
-    pub(crate) payload: PacketPayload,
+    pub(crate) payload: P,
 }
 
-impl Packet {
-    pub(crate) fn new(tipe: PacketType, target: Option<String>, payload: PacketPayload) -> Self {
+impl<P: PacketPayload> Packet<P> {
+    pub(crate) fn new(tipe: PacketType, target: Option<String>, payload: P) -> Self {
         Self {
             tipe,
             target,
             payload,
         }
     }
-}
-
-#[derive(Debug, Clone)]
-pub(crate) enum PacketPayload {
-    FullPayload(FullPacketPayload),
-    Custom(serde_json::Value),
-}
-
-impl PacketPayload {
-    pub(crate) fn get_custom(self) -> anyhow::Result<serde_json::Value> {
-        match self {
-            PacketPayload::FullPayload(full) => {
-                let data = serde_json::to_value(full);
-                match data {
-                    Ok(value) => Ok(value),
-                    Err(err) => bail!(PacketError::CannotParse(err.to_string())),
-                }
-            }
-            PacketPayload::Custom(custom) => Ok(custom),
+    pub(crate) fn from_payload<T:PacketPayload+Send>(mut self, payload: T) -> Packet<T> {
+        Packet {
+            payload,
+            target: self.target,
+            tipe: self.tipe,
         }
-    
+    }
+}
+
+impl PacketPayload for PayloadRequest {
+    fn tipe(&self) -> PacketType {
+        PacketType::Request
     }
 
-    pub (crate) fn get_full(self)-> anyhow::Result<FullPacketPayload>{
-        match self {
-            PacketPayload::FullPayload(full) => Ok(full),
-            PacketPayload::Custom(_) => bail!(PacketError::NoFullPacket),
-        }
+    fn request_paylaod(self) -> anyhow::Result<PayloadRequest> {
+        Ok(self)
     }
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub(crate) struct FullPacketPayload {
+pub(crate) struct PayloadRequest {
     pub(crate) action: String,
     pub(crate) sender: String,
     pub(crate) id: String,
@@ -113,4 +116,72 @@ pub(crate) struct FullPacketPayload {
     pub(crate) timeout: Option<i64>,
     pub(crate) params: Payload,
     pub(crate) groups: Option<Vec<String>>,
+}
+
+impl PacketPayload for PayloadEvent {
+    fn tipe(&self) -> PacketType {
+        PacketType::Event
+    }
+    fn event_payload(mut self) -> anyhow::Result<PayloadEvent> {
+        Ok(self)
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub(crate) struct PayloadEvent {
+    pub(crate) id: String,
+    pub(crate) event: String,
+    pub(crate) data: Payload,
+    pub(crate) groups: Vec<String>,
+    pub(crate) broadcast: bool,
+    pub(crate) meta: Payload,
+    pub(crate) level: usize,
+    pub(crate) tracing: bool,
+    pub(crate) parentID: Option<String>,
+    pub(crate) requestID: String,
+    pub(crate) caller: String,
+    pub(crate) needAck: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub(crate) struct PayloadHeartbeat {
+    pub(crate) cpu: Option<u32>,
+}
+impl PacketPayload for PayloadHeartbeat {
+    fn tipe(&self) -> PacketType {
+        PacketType::Heartbeat
+    }
+}
+#[derive(Debug, Clone, Serialize)]
+pub(crate) struct PayloadPong {
+    pub(crate) sender: String,
+    pub(crate) time: String,
+    pub(crate) arrived: String,
+    pub(crate) id: String,
+}
+
+impl PacketPayload for PayloadPong {
+    fn tipe(&self) -> PacketType {
+        PacketType::Pongs
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub(crate) struct PayloadPing {
+    pub(crate) sender: String,
+    pub(crate) time: String,
+    pub(crate) id: String,
+}
+impl PacketPayload for PayloadPing {
+    fn tipe(&self) -> PacketType {
+        PacketType::Ping
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub(crate) struct PayloadNull {}
+impl PacketPayload for PayloadNull {
+    fn tipe(&self) -> PacketType {
+        PacketType::Null
+    }
 }

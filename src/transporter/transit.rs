@@ -1,18 +1,17 @@
-use std::{any, fmt, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
-use chrono::{DateTime, FixedOffset, Local};
+use chrono::{DateTime, Local};
 use derive_more::Display;
 use log::{debug, error, info, warn};
-use serde::Serialize;
+
 use serde_json::{json, Value};
 
-use super::{Topic, Transporter};
+use super::*;
 use crate::{
     constants::*,
-    context::Context,
+    context::{Context, EventType},
     errors::{PacketError, ServiceBrokerError},
-    packet::{FullPacketPayload, Packet, PacketPayload, PacketType},
-    registry::{Node, Payload},
+    registry::{EndpointTrait, EventEndpoint, Node, Payload},
     utils, HandlerResult,
 };
 use crate::{ServiceBroker, ServiceBrokerMessage};
@@ -21,6 +20,10 @@ use tokio::{sync::mpsc, task};
 
 type P = PacketType;
 struct TransitOptions {}
+
+struct Request {
+    node_id: String,
+}
 
 struct Transit<T: Transporter> {
     reciever: mpsc::UnboundedReceiver<TransitMessage>,
@@ -36,6 +39,7 @@ struct Transit<T: Transporter> {
     conntected: bool,
     disconnecting: bool,
     is_ready: bool,
+    pending_requests: HashMap<String, Request>,
 }
 
 impl<T: Transporter> Transit<T> {
@@ -61,6 +65,7 @@ impl<T: Transporter> Transit<T> {
             conntected: false,
             disconnecting: false,
             is_ready: false,
+            pending_requests: HashMap::new(),
         }
     }
 
@@ -128,7 +133,7 @@ impl<T: Transporter> Transit<T> {
         todo!("return from the make subscriptions");
     }
 
-    fn message_handler(&self, cmd: String, packet: Packet) {
+    fn message_handler<P: PacketPayload>(&self, cmd: String, packet: Packet<P>) {
         todo!("implement payload parsing first")
     }
 
@@ -136,7 +141,7 @@ impl<T: Transporter> Transit<T> {
         todo!("implement the payload parsing first")
     }
 
-    async fn request_handler(&self, payload: FullPacketPayload) -> anyhow::Result<()> {
+    async fn request_handler(&self, payload: PayloadRequest) -> anyhow::Result<()> {
         debug!(
             "<= Request '{}' received from '{}' node.",
             payload.action, payload.sender
@@ -181,6 +186,81 @@ impl<T: Transporter> Transit<T> {
         Ok(())
     }
 
+    ///Send an event to a remote node.
+    /// The event is balanced by transporter
+    pub async fn send_event(
+        &self,
+        ctx: Context,
+        endpoint: Option<EventEndpoint>,
+        params: Payload,
+    ) -> anyhow::Result<()> {
+        let groups = match ctx.event_groups {
+            Some(groups) => groups,
+            None => bail!("No event groups present"),
+        };
+        let event_name = match ctx.event_name {
+            Some(name) => name,
+            None => bail!("No event name present"),
+        };
+
+        match endpoint {
+            Some(ep) => {
+                debug!(
+                    "=> Send '{}' event to '{}' node {:?}.",
+                    event_name,
+                    ep.node(),
+                    groups
+                )
+            }
+            None => debug!("=> Send '{}' event to '{:?}'.", event_name, groups),
+        }
+        let is_braodcast = match ctx.event_type {
+            EventType::Broadcast => true,
+            EventType::Emit => false,
+        };
+        let payload_event = PayloadEvent {
+            id: ctx.id,
+            event: event_name.clone(),
+            data: params,
+            groups: groups,
+            broadcast: is_braodcast,
+            meta: ctx.meta,
+            level: ctx.level,
+            tracing: ctx.tracing,
+            parentID: ctx.parent_id,
+            requestID: ctx
+                .request_id
+                .expect("No request id present in the context"),
+            caller: ctx.caller.expect("No caller present in the context"),
+            needAck: ctx.need_ack,
+        };
+        let packet = Packet::new(P::Event, ctx.node_id, payload_event);
+        let result = self.publish(packet).await;
+        if result.is_err() {
+            let err = result.unwrap_err();
+            let message = format!("Unable to send {} event to groups. {}", event_name, err);
+            self.send_error(err, FAILED_SEND_EVENT_PACKET, message);
+        }
+        Ok(())
+    }
+
+    fn remove_pending_request(&mut self, id: &str) {
+        self.pending_requests.remove(id);
+    }
+
+    fn remove_pending_request_by_node(&mut self, node_id: &str) {
+        debug!("Remove pending requests of {} node.", node_id);
+        self.pending_requests.retain(|key, value| {
+            if value.node_id == node_id {
+                //TODO: add the req.reject error
+                return false;
+            }
+            return true;
+        });
+        todo!("remove from res stream");
+        todo!("remove from req streams")
+    }
+
     fn send_response(
         &self,
         node_id: String,
@@ -197,7 +277,7 @@ impl<T: Transporter> Transit<T> {
     }
 
     async fn discover_nodes(&self) {
-        let packet = Packet::new(P::Discover, None, PacketPayload::Custom(Value::Null));
+        let packet = Packet::new(P::Discover, None, PayloadNull{});
         let result = self.publish(packet).await;
         if result.is_err() {
             let err = result.unwrap_err();
@@ -206,11 +286,7 @@ impl<T: Transporter> Transit<T> {
         }
     }
     async fn discover_node(&self, node_id: String) {
-        let packet = Packet::new(
-            P::Discover,
-            Some(node_id.clone()),
-            PacketPayload::Custom(Value::Null),
-        );
+        let packet = Packet::new(P::Discover, Some(node_id.clone()), PayloadNull {});
         let result = self.publish(packet).await;
         if result.is_err() {
             let err = result.unwrap_err();
@@ -228,7 +304,13 @@ impl<T: Transporter> Transit<T> {
             None => utils::generate_uuid(),
         };
         let data = json!({"time" :Local::now().to_rfc3339() , "id" : id  });
-        let packet = Packet::new(P::Ping, node_id.clone(), PacketPayload::Custom(data));
+        let payload = PayloadPing {
+            sender:self.node_id.clone(),
+            time: Local::now().to_rfc3339(),
+            id,
+        };
+
+        let packet = Packet::new(P::Ping, node_id.clone(), payload);
         let result = self.publish(packet).await;
         if result.is_err() {
             let err = result.unwrap_err();
@@ -241,31 +323,20 @@ impl<T: Transporter> Transit<T> {
         }
     }
 
-    async fn send_pong(&self, payload: PacketPayload) -> anyhow::Result<()> {
-        let payload = payload.get_custom()?;
-        let target = payload.get("sender");
-        let sender_np = "Sender not present";
-
-        let target = match target {
-            Some(target) => match target.as_str() {
-                Some(target) => target.to_string(),
-                None => bail!(sender_np),
-            },
-            None => bail!(sender_np),
+    async fn send_pong(&self, payload: PayloadPing) -> anyhow::Result<()> {
+        let pong_payload = PayloadPong {
+            sender:self.node_id.clone(),
+            time: payload.time,
+            arrived: Local::now().to_rfc3339(),
+            id: payload.id,
         };
-        let target_copy = target.clone();
-        let time = payload.get("time");
-        let id = payload.get("id");
-
-        let arrived = Local::now().to_rfc3339();
-        let data = json!({"time":time , "id":id , "arrived": arrived});
-        let packet = Packet::new(P::Pongs, Some(target), PacketPayload::Custom(data));
+        let packet = Packet::new(P::Pongs, Some(payload.sender.clone()), pong_payload);
         let result = self.publish(packet).await;
         if result.is_err() {
             let err = result.unwrap_err();
             let message = format!(
                 "Unable to send PONG packet to {} node. {}",
-                target_copy, err
+                payload.sender, err
             );
             self.send_error(err, FAILED_SEND_PONG_PACKET, message);
         }
@@ -273,16 +344,17 @@ impl<T: Transporter> Transit<T> {
         Ok(())
     }
 
-    async fn process_pong(&self, payload: PacketPayload) -> anyhow::Result<()> {
-        let payload = payload.get_custom()?;
+    async fn process_pong(&self, payload: PayloadPong) -> anyhow::Result<()> {
         let now = Local::now();
-        let time = self.extract_time_from_payload(&payload, "time")?;
+
+        let time = self.extract_time_from_payload(&payload.time)?;
         let elapsed_time = now - time;
-        let arrived_time = self.extract_time_from_payload(&payload, "arrived")?;
+        let arrived_time = self.extract_time_from_payload(&payload.arrived)?;
         let time_diff = (now - arrived_time - elapsed_time / 2).num_milliseconds();
         let elapsed_time = elapsed_time.num_milliseconds();
 
-        let data = json!({"nodeID" : payload.get("sender") ,"elapsedTime" :elapsed_time , "timeDiff":time_diff , "id": payload.get("id") });
+        let data = json!({"nodeID" : payload.sender ,"elapsedTime" :elapsed_time , "timeDiff":time_diff , "id": payload.id });
+
         let _ = self
             .broker_sender
             .send(ServiceBrokerMessage::BroadcastLocal {
@@ -294,7 +366,9 @@ impl<T: Transporter> Transit<T> {
     }
 
     async fn send_heartbeat(&self, local_node: &Node) {
-        let payload = PacketPayload::Custom(json!({"cpu":local_node.cpu}));
+        let payload = PayloadHeartbeat {
+            cpu: local_node.cpu,
+        };
         let packet = Packet::new(P::Heartbeat, None, payload);
         let result = self.publish(packet).await;
         if result.is_err() {
@@ -308,7 +382,7 @@ impl<T: Transporter> Transit<T> {
         self.tx.subscibe(topic, node_id).await;
     }
 
-    async fn publish(&self, packet: Packet) -> anyhow::Result<()> {
+    async fn publish<P: PacketPayload>(&self, packet: Packet<P>) -> anyhow::Result<()> {
         todo!()
     }
 
@@ -342,24 +416,13 @@ impl<T: Transporter> Transit<T> {
                 opts: Value::Null,
             });
     }
-    fn extract_time_from_payload(
-        &self,
-        payload: &Value,
-        key: &str,
-    ) -> anyhow::Result<DateTime<Local>> {
-        let time = match &payload.get(key) {
-            Some(time) => {
-                let time = match time.as_str() {
-                    Some(time) => DateTime::parse_from_rfc3339(time),
-                    None => bail!(PacketError::CannotParse(
-                        "Cannot extract time from the packet.".to_string()
-                    )),
-                }?;
-                DateTime::from(time)
-            }
-            None => bail!("No time specified."),
-        };
-        Ok(time)
+    fn extract_time_from_payload(&self, value: &str) -> anyhow::Result<DateTime<Local>> {
+        match DateTime::parse_from_rfc3339(value) {
+            Ok(time) => Ok(DateTime::from(time)),
+            Err(_) => bail!(PacketError::CannotParse(
+                "Cannot extract time from the packet.".to_string()
+            )),
+        }
     }
 }
 
