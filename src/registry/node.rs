@@ -1,16 +1,18 @@
 use std::net::IpAddr;
 
 use chrono::Duration;
+use serde::{Serialize, Serializer};
 use serde_json::Value;
 
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug, Serialize)]
 pub struct Node {
     pub id: String,
     instance_id: Option<String>,
     pub available: bool,
     pub local: bool,
+    #[serde(serialize_with = "duration_serialzie")]
     last_heartbeat_time: Duration,
-    metadata : Value,
+    metadata: Value,
     /* feields that need to be added later.
     config
 
@@ -21,12 +23,13 @@ pub struct Node {
     hostname: Option<String>,
     udp_address: Option<IpAddr>,
     pub raw_info: Option<Value>,
-    pub cpu:Option<u32>,
+    pub cpu: Option<u32>,
     /*
     cpuseq
     */
     pub services: Vec<String>,
     pub seq: usize,
+    #[serde(serialize_with = "option_duration_serialzie")]
     offline_since: Option<Duration>,
 }
 
@@ -39,7 +42,7 @@ impl Node {
             local: false,
             client: None,
             raw_info: None,
-            metadata : Value::Null,
+            metadata: Value::Null,
             //TODO:
             /*
             change this later with actual process uptime.
@@ -51,7 +54,7 @@ impl Node {
             udp_address: None,
             services: Vec::new(),
             seq: 0,
-            cpu : None,
+            cpu: None,
             offline_since: None,
         }
     }
@@ -68,7 +71,7 @@ impl Node {
         }
         todo!()
     }
-    pub fn disconnect(&mut self) {
+    pub fn disconnected(&mut self) {
         if self.available {
             self.seq = self.seq.saturating_add(1);
             /* update this with process uptime
@@ -105,15 +108,31 @@ impl Node {
         self.seq = seq;
         self
     }
-    pub fn set_metadata(mut self , metadata:Value)->Self{
+    pub fn set_metadata(mut self, metadata: Value) -> Self {
         self.metadata = metadata;
         self
     }
 }
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug, Serialize)]
 
 pub struct Client {
     pub(crate) client_type: String,
     pub(crate) version: String,
     pub(crate) lang_version: String,
+}
+
+fn duration_serialzie<S>(x: &Duration, s: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    s.serialize_i64(x.num_milliseconds())
+}
+fn option_duration_serialzie<S>(x: &Option<Duration>, s: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    match x {
+        Some(x) => s.serialize_i64(x.num_milliseconds()),
+        None => s.serialize_none(),
+    }
 }

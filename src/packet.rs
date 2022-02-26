@@ -83,7 +83,7 @@ impl<P: PacketPayload> Packet<P> {
             payload,
         }
     }
-    pub(crate) fn from_payload<T:PacketPayload+Send>(mut self, payload: T) -> Packet<T> {
+    pub(crate) fn from_payload<T:PacketPayload+Send>(self, payload: T) -> Packet<T> {
         Packet {
             payload,
             target: self.target,

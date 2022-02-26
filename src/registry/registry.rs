@@ -9,7 +9,7 @@ use tokio::sync::mpsc::UnboundedSender;
 pub struct Registry {
     broker_sender: UnboundedSender<ServiceBrokerMessage>,
     broker: Arc<ServiceBroker>,
-    nodes: NodeCatalog,
+    pub(crate) nodes: NodeCatalog,
     services: ServiceCatalog,
     pub(crate) actions: ActionCatalog,
     /*
@@ -159,7 +159,7 @@ impl Registry {
             }
         }
     }
-    fn unregister_service_by_node_id(&mut self, node_id: &str) {
+    pub fn unregister_service_by_node_id(&mut self, node_id: &str) {
         self.services.remove_all_by_node_id(node_id);
     }
     fn unregiste_action(&mut self, node_id: &str, action_name: &str) {

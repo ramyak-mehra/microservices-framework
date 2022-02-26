@@ -7,6 +7,7 @@ pub mod node_catalog;
 pub mod registry;
 pub mod service_catalog;
 pub mod service_item;
+pub mod discoverers;
 
 use std::collections::HashMap;
 use std::sync::Arc;

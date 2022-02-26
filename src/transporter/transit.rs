@@ -25,7 +25,7 @@ struct Request {
     node_id: String,
 }
 
-struct Transit<T: Transporter> {
+pub(crate) struct Transit<T: Transporter + Send + Sync> {
     reciever: mpsc::UnboundedReceiver<TransitMessage>,
     broker: Arc<ServiceBroker>,
     broker_sender: mpsc::UnboundedSender<ServiceBrokerMessage>,
@@ -42,7 +42,7 @@ struct Transit<T: Transporter> {
     pending_requests: HashMap<String, Request>,
 }
 
-impl<T: Transporter> Transit<T> {
+impl<T: Transporter + Send + Sync> Transit<T> {
     fn new(
         broker: Arc<ServiceBroker>,
         opts: TransitOptions,
@@ -277,7 +277,7 @@ impl<T: Transporter> Transit<T> {
     }
 
     async fn discover_nodes(&self) {
-        let packet = Packet::new(P::Discover, None, PayloadNull{});
+        let packet = Packet::new(P::Discover, None, PayloadNull {});
         let result = self.publish(packet).await;
         if result.is_err() {
             let err = result.unwrap_err();
@@ -305,7 +305,7 @@ impl<T: Transporter> Transit<T> {
         };
         let data = json!({"time" :Local::now().to_rfc3339() , "id" : id  });
         let payload = PayloadPing {
-            sender:self.node_id.clone(),
+            sender: self.node_id.clone(),
             time: Local::now().to_rfc3339(),
             id,
         };
@@ -325,7 +325,7 @@ impl<T: Transporter> Transit<T> {
 
     async fn send_pong(&self, payload: PayloadPing) -> anyhow::Result<()> {
         let pong_payload = PayloadPong {
-            sender:self.node_id.clone(),
+            sender: self.node_id.clone(),
             time: payload.time,
             arrived: Local::now().to_rfc3339(),
             id: payload.id,
@@ -378,8 +378,13 @@ impl<T: Transporter> Transit<T> {
         }
     }
 
-    async fn subscibe(&self, topic: String, node_id: String) {
-        self.tx.subscibe(topic, node_id).await;
+    async fn subscibe(&self, topic: String, node_id: String) -> anyhow::Result<()> {
+        self.tx
+            .subscibe(Topic {
+                node_id: Some(node_id),
+                cmd: topic,
+            })
+            .await
     }
 
     async fn publish<P: PacketPayload>(&self, packet: Packet<P>) -> anyhow::Result<()> {

@@ -26,11 +26,17 @@ impl NodeCatalog {
         }
     }
     ///Create a local node
-    pub fn create_local_node(&mut self, client_version: String, node_id: String, instance_id: String , metadata:Value) {
+    pub fn create_local_node(
+        &mut self,
+        client_version: String,
+        node_id: String,
+        instance_id: String,
+        metadata: Value,
+    ) {
         let client = Client {
             client_type: "rust".to_string(),
             lang_version: "1.56.1".to_string(),
-            version:client_version,
+            version: client_version,
         };
         let node = Node::new(node_id)
             .set_local(true)
@@ -38,8 +44,8 @@ impl NodeCatalog {
             .set_instance_id(instance_id)
             .set_hostname(utils::hostname().into_owned())
             .set_seq(1)
-            .set_client(client).
-            set_metadata(metadata);
+            .set_client(client)
+            .set_metadata(metadata);
         self.nodes.insert(node.id.to_string(), node.clone());
         self.local_node_id = node.id;
     }
@@ -88,9 +94,17 @@ impl NodeCatalog {
     pub fn process_node_info(&self) {
         todo!()
     }
-    pub fn disconnect(&mut self) {
-        todo!()
-    }
+    //Returns a bool if there was a node availabel that is removed
+    pub fn disconnected(&mut self, node_id: &str)->Option<Node> {
+        let node = self.get_node_mut(node_id);
+        if let Some(node) = node {
+            if node.available {
+                node.disconnected();
+                return Some(node.clone());
+            }
+        }
+        None
+        }
 
     pub fn list(&self, only_available: bool, with_services: bool) -> Vec<&Node> {
         self.nodes
