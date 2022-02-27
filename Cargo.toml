@@ -21,3 +21,4 @@ uuid = { version = "0.8", features = ["serde", "v4"] }
 hostname = "0.3.1"
 get_if_addrs = "0.5.3"
 async-trait = "0.1.52"
+async-nats = "0.10.1"

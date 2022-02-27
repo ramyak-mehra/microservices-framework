@@ -1,11 +1,20 @@
+pub mod nats;
 pub mod transit;
 use anyhow::bail;
 use async_trait::async_trait;
+use lazy_static::lazy_static;
+use regex::Regex;
 pub(crate) use transit::Transit;
 
 pub(crate) use crate::{errors::ServiceBrokerError, packet::*};
 type PT = PacketType;
-
+fn balanced_event_regex_replace(topic: &str)->String {
+    lazy_static! {
+        static ref RE: Regex = Regex::new(r"\*\*.*$").unwrap();
+    }
+   let result =  RE.replace(topic, ">");
+   result.into_owned()
+}
 #[async_trait]
 pub(crate) trait Transporter {
     fn connected(&self) -> bool;
@@ -23,13 +32,13 @@ pub(crate) trait Transporter {
 
     async fn incoming_message(&self);
     //Received data. It's a wrapper for middlewares.
-    async fn receive(&self) {
+    async fn receive(&self, cmd: &str, data: Vec<u8>) {
         self.incoming_message().await;
     }
 
     async fn subscibe(&self, topic: Topic) -> anyhow::Result<()>;
     async fn subscibe_balanced_request(&self) -> anyhow::Result<()>;
-     async fn subscibe_balanced_event(&self) -> anyhow::Result<()>;
+    async fn subscibe_balanced_event(&self) -> anyhow::Result<()>;
 
     async fn pre_publish<P: PacketPayload + Send + Copy>(
         &self,
@@ -77,7 +86,7 @@ pub(crate) trait Transporter {
     }
 
     async fn publish<P: PacketPayload + Send>(&self, packet: Packet<P>) -> anyhow::Result<()> {
-        let topic = self.get_topic_name(&packet);
+        let topic = self.get_topic_name(&packet.tipe.to_string(), &packet.target);
         //TODO: get serialized data
         todo!("serialzie data");
         self.send(topic, packet, None).await
@@ -116,11 +125,11 @@ pub(crate) trait Transporter {
         data: Packet<P>,
         meta: Option<TransporterMeta>,
     ) -> anyhow::Result<()>;
-    fn get_topic_name<P: PacketPayload>(&self, packet: &Packet<P>) -> String {
+    fn get_topic_name(&self, cmd: &str, node_id: &Option<String>) -> String {
         let prefix = self.prefix();
-        let mut topic_name = format!("{}.{}", prefix, packet.tipe.to_string());
+        let mut topic_name = format!("{}.{}", prefix, cmd);
 
-        if let Some(node_id) = &packet.target {
+        if let Some(node_id) = node_id {
             topic_name = format!("{}.{}", topic_name, node_id);
         };
         topic_name
