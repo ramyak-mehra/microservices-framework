@@ -1,9 +1,12 @@
-use crate::{errors::PacketError, registry::Payload};
+use crate::{
+    errors::PacketError,
+    registry::{Client, Payload},
+};
 use anyhow::bail;
 use serde::Serialize;
 use serde_json::*;
 use std::{any, fmt::Display};
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum PacketType {
     Unknown,
     Event,
@@ -67,7 +70,7 @@ where
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub(crate) struct Packet<P: PacketPayload> {
     //type
     pub(crate) tipe: PacketType,
@@ -83,7 +86,7 @@ impl<P: PacketPayload> Packet<P> {
             payload,
         }
     }
-    pub(crate) fn from_payload<T:PacketPayload+Send>(self, payload: T) -> Packet<T> {
+    pub(crate) fn from_payload<T: PacketPayload + Send>(self, payload: T) -> Packet<T> {
         Packet {
             payload,
             target: self.target,
@@ -183,5 +186,24 @@ pub(crate) struct PayloadNull {}
 impl PacketPayload for PayloadNull {
     fn tipe(&self) -> PacketType {
         PacketType::Null
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub(crate) struct PayloadInfo {
+    pub(crate) sender: String,
+    pub(crate) services: String,
+    pub(crate) config: String,
+    pub(crate) ip_list: Vec<String>,
+    pub(crate) hostame: String,
+    pub(crate) client: Client,
+    pub(crate) seq: usize,
+    pub(crate) instance_id: String,
+    pub(crate) meta_data: String,
+}
+
+impl PacketPayload for PayloadInfo {
+    fn tipe(&self) -> PacketType {
+        PacketType::Info
     }
 }

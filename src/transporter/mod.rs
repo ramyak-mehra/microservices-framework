@@ -1,22 +1,27 @@
 pub mod nats;
 pub mod transit;
+use std::sync::Arc;
+
 use anyhow::bail;
 use async_trait::async_trait;
 use lazy_static::lazy_static;
 use regex::Regex;
+use serde::Serialize;
 pub(crate) use transit::Transit;
 
 pub(crate) use crate::{errors::ServiceBrokerError, packet::*};
+use crate::{serializers::BaseSerializer, ServiceBroker};
 type PT = PacketType;
-fn balanced_event_regex_replace(topic: &str)->String {
+fn balanced_event_regex_replace(topic: &str) -> String {
     lazy_static! {
         static ref RE: Regex = Regex::new(r"\*\*.*$").unwrap();
     }
-   let result =  RE.replace(topic, ">");
-   result.into_owned()
+    let result = RE.replace(topic, ">");
+    result.into_owned()
 }
 #[async_trait]
 pub(crate) trait Transporter {
+    fn broker(&self) -> &Arc<ServiceBroker>;
     fn connected(&self) -> bool;
     fn prefix(&self) -> String;
     async fn connect(&self);
@@ -40,7 +45,7 @@ pub(crate) trait Transporter {
     async fn subscibe_balanced_request(&self) -> anyhow::Result<()>;
     async fn subscibe_balanced_event(&self) -> anyhow::Result<()>;
 
-    async fn pre_publish<P: PacketPayload + Send + Copy>(
+    async fn pre_publish<P: PacketPayload + Send + Copy + Serialize>(
         &self,
         packet: Packet<P>,
     ) -> anyhow::Result<()> {
@@ -85,11 +90,14 @@ pub(crate) trait Transporter {
         Ok(())
     }
 
-    async fn publish<P: PacketPayload + Send>(&self, packet: Packet<P>) -> anyhow::Result<()> {
+    async fn publish<P: PacketPayload + Send + Serialize>(
+        &self,
+        packet: Packet<P>,
+    ) -> anyhow::Result<()> {
         let topic = self.get_topic_name(&packet.tipe.to_string(), &packet.target);
-        //TODO: get serialized data
-        todo!("serialzie data");
-        self.send(topic, packet, None).await
+
+        let data = self.serialize(packet);
+        self.send(topic, data, None).await
     }
     async fn publish_balanced_event(
         &self,
@@ -103,10 +111,9 @@ pub(crate) trait Transporter {
             group,
             packet.payload.event
         );
-        todo!("serialzie data");
-
+        let data = self.serialize(packet);
         let meta = TransporterMeta { balanced: true };
-        self.send(topic, packet, Some(meta)).await
+        self.send(topic, data, Some(meta)).await
     }
     async fn publish_balanced_request(&self, packet: Packet<PayloadRequest>) -> anyhow::Result<()> {
         let topic = format!(
@@ -115,14 +122,14 @@ pub(crate) trait Transporter {
             PT::Request,
             packet.payload.action
         );
-        todo!("serialzie data");
+        let data = self.serialize(packet);
         let meta = TransporterMeta { balanced: true };
-        self.send(topic, packet, Some(meta)).await
+        self.send(topic, data, Some(meta)).await
     }
-    async fn send<P: PacketPayload + Send>(
+    async fn send(
         &self,
         topic: String,
-        data: Packet<P>,
+        data: String,
         meta: Option<TransporterMeta>,
     ) -> anyhow::Result<()>;
     fn get_topic_name(&self, cmd: &str, node_id: &Option<String>) -> String {
@@ -133,6 +140,12 @@ pub(crate) trait Transporter {
             topic_name = format!("{}.{}", topic_name, node_id);
         };
         topic_name
+    }
+    fn serialize<P: PacketPayload + Send + Serialize>(&self, packet: Packet<P>) -> String {
+        let serializer = self.broker().serializer();
+        //TODO: handle the error
+        let data = serializer.serialize(packet).unwrap();
+        data
     }
 }
 

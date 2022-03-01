@@ -5,6 +5,7 @@ pub mod logger;
 pub mod packet;
 pub mod registry;
 pub mod service;
+pub mod serializers;
 pub mod strategies;
 pub mod utils;
 pub mod transporter;

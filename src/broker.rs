@@ -11,6 +11,7 @@ use crate::{
     context::Context,
     errors::ServiceBrokerError,
     registry::{self, endpoint_list, node, ActionEndpoint, EndpointTrait, EventEndpoint, Payload},
+    serializers::{json::JSONSerializer, BaseSerializer},
     strategies::{RoundRobinStrategy, Strategy},
     utils,
 };
@@ -68,6 +69,7 @@ pub struct BrokerOptions {
     wait_for_neighbours_interval: Duration,
     dont_wait_for_neighbours: bool,
     strategy_factory: RwLock<RoundRobinStrategy>,
+    pub serializer: JSONSerializer,
     pub metadata: Value, /*
                          discover_node_id : fn()->String,
                          metrics bool
@@ -100,6 +102,7 @@ impl Default for BrokerOptions {
             wait_for_neighbours_interval: Duration::milliseconds(200),
             strategy_factory: RwLock::new(RoundRobinStrategy::new()),
             metadata: Value::Null,
+            serializer: JSONSerializer {},
         }
     }
 }
@@ -109,7 +112,7 @@ impl Default for BrokerOptions {
 pub struct ServiceBroker {
     reciever: UnboundedReceiver<ServiceBrokerMessage>,
     pub(crate) sender: UnboundedSender<ServiceBrokerMessage>,
-   pub(crate) started: bool,
+    pub(crate) started: bool,
     namespace: Option<String>,
     metdata: Payload,
     pub node_id: String,
@@ -143,7 +146,9 @@ impl ServiceBroker {
         let time = Utc::now();
         self.started = true;
     }
-
+    pub fn serializer(&self) -> &JSONSerializer {
+        &self.options.serializer
+    }
     fn stop(&mut self) {
         todo!("handle stopping the broker")
     }
@@ -271,7 +276,7 @@ impl ServiceBroker {
                 ctx.request_id
             )
         }
-        task::spawn_blocking( move || {
+        task::spawn_blocking(move || {
             let result = (endpoint.action.handler)(ctx, Some(params));
             let _ = sender.send(Ok(result));
         });
@@ -337,7 +342,7 @@ impl ServiceBroker {
     pub fn get_local_action_endpoint(
         &self,
         action_name: &str,
-        ctx:&Context,
+        ctx: &Context,
     ) -> anyhow::Result<&ActionEndpoint> {
         //Find action endpoints by name.
         let ep_list = self

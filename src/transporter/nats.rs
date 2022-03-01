@@ -122,6 +122,10 @@ impl NatsTransporter {
 }
 
 impl Transporter for NatsTransporter {
+    fn broker(&self) -> &Arc<crate::ServiceBroker> {
+        todo!()
+    }
+
     fn connected(&self) -> bool {
         todo!()
     }
@@ -219,10 +223,10 @@ impl Transporter for NatsTransporter {
         todo!()
     }
 
-    fn send<'life0, 'async_trait, P: super::PacketPayload + Send>(
+    fn send<'life0, 'async_trait>(
         &'life0 self,
         topic: String,
-        data: super::Packet<P>,
+        data: String,
         meta: Option<super::TransporterMeta>,
     ) -> core::pin::Pin<
         Box<
@@ -232,7 +236,6 @@ impl Transporter for NatsTransporter {
         >,
     >
     where
-        P: 'async_trait,
         'life0: 'async_trait,
         Self: 'async_trait,
     {
