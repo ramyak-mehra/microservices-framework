@@ -112,7 +112,7 @@ impl Node {
 #[derive(PartialEq, Eq, Clone, Debug)]
 
 pub struct Client {
-    pub(crate) client_type: String,
-    pub(crate) version: String,
-    pub(crate) lang_version: String,
+    pub  client_type: String,
+    pub  version: String,
+    pub  lang_version: String,
 }

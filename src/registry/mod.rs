@@ -23,6 +23,7 @@ use node_catalog::NodeCatalog;
 
 use regex::Regex;
 pub use registry::Registry;
+use serde_json::Value;
 use service_catalog::ServiceCatalog;
 use service_item::ServiceItem;
 // pub use event_endpoint::EventEndpoint;
@@ -42,13 +43,16 @@ pub struct Logger {}
 pub type ActionHandler = fn(Context, Option<Payload>) -> HandlerResult;
 
 #[derive(Default, Debug, PartialEq, Eq, Clone)]
-pub struct Payload {}
+pub struct Payload {
+    pub  data: Value,
+}
+
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 
 pub struct Action {
     pub name: String,
-    pub(crate) visibility: Visibility,
+    pub  visibility: Visibility,
     pub handler: ActionHandler,
     // service: Option<Service>,
 }

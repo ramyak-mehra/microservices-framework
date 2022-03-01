@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use uuid::Uuid;
 
-pub(crate) fn generate_uuid() -> String {
+pub  fn generate_uuid() -> String {
     Uuid::new_v4().to_string()
 }
 
@@ -14,13 +14,13 @@ fn remove_from_list<T: PartialEq + Eq>(list: &mut Vec<T>, value: &T) {
         true
     });
 }
-pub(crate) fn hostname() -> Cow<'static, str> {
+pub  fn hostname() -> Cow<'static, str> {
     hostname::get()
         .map(|s| Cow::Owned(s.to_string_lossy().to_string().to_lowercase()))
         .unwrap_or_else(|_| Cow::Borrowed("unknown_host_name"))
 }
 
-pub(crate) fn ip_list() -> Vec<String> {
+pub  fn ip_list() -> Vec<String> {
     get_if_addrs::get_if_addrs()
         .unwrap_or_default()
         .iter()

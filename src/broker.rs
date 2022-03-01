@@ -68,16 +68,15 @@ pub struct BrokerOptions {
     wait_for_neighbours_interval: Duration,
     dont_wait_for_neighbours: bool,
     strategy_factory: RwLock<RoundRobinStrategy>,
-   pub metadata : Value
-    /*
-    discover_node_id : fn()->String,
-    metrics bool
-    metric
-    middleware
-    loglevel
-    logformat
-    transporter factory
-    */
+    pub metadata: Value, /*
+                         discover_node_id : fn()->String,
+                         metrics bool
+                         metric
+                         middleware
+                         loglevel
+                         logformat
+                         transporter factory
+                         */
 }
 
 impl Default for BrokerOptions {
@@ -99,7 +98,8 @@ impl Default for BrokerOptions {
             metrics_rate: 1.0,
             max_call_level: 100,
             wait_for_neighbours_interval: Duration::milliseconds(200),
-            strategy_factory: RwLock::new(RoundRobinStrategy::new()),metadata:Value::Null
+            strategy_factory: RwLock::new(RoundRobinStrategy::new()),
+            metadata: Value::Null,
         }
     }
 }
@@ -107,14 +107,14 @@ impl Default for BrokerOptions {
 #[derive(Debug)]
 
 pub struct ServiceBroker {
-    reciever: UnboundedReceiver<ServiceBrokerMessage>,
-    pub(crate) sender: UnboundedSender<ServiceBrokerMessage>,
-    started: bool,
-    namespace: Option<String>,
-    metdata: Payload,
+    pub reciever: UnboundedReceiver<ServiceBrokerMessage>,
+    pub sender: UnboundedSender<ServiceBrokerMessage>,
+    pub started: bool,
+    pub namespace: Option<String>,
+    pub metdata: Payload,
     pub node_id: String,
     pub instance: String,
-    services: Vec<Service>,
+    pub services: Vec<Service>,
     pub transit: Option<Transit>,
     pub logger: Arc<Logger>,
     pub options: BrokerOptions,
@@ -132,14 +132,14 @@ pub struct ServiceBroker {
     tracer
     transporter
     */
-    registry: Option<Registry>,
+    pub registry: Option<Registry>,
 }
 #[derive(Debug)]
 
 pub struct Transit {}
 
 impl ServiceBroker {
-    fn start(&mut self) {
+    pub fn start(&mut self) {
         let time = Utc::now();
         self.started = true;
     }
@@ -148,10 +148,10 @@ impl ServiceBroker {
         todo!("handle stopping the broker")
     }
 
-    fn add_local_service(&mut self, service: Service) {
+    pub fn add_local_service(&mut self, service: Service) {
         self.services.push(service);
     }
-    fn register_local_service(&mut self, service: ServiceSpec) -> anyhow::Result<()> {
+    pub fn register_local_service(&mut self, service: ServiceSpec) -> anyhow::Result<()> {
         match &mut self.registry {
             Some(registry) => registry.register_local_service(service),
             None => todo!(),
@@ -246,12 +246,12 @@ impl ServiceBroker {
         };
     }
 
-    async fn call(
+    pub async fn call(
         &self,
         action_name: &str,
         params: Payload,
         opts: CallOptions,
-        sender: oneshot::Sender<Result<HandlerResult>>,
+        sender: oneshot::Sender<anyhow::Result<HandlerResult>>,
     ) -> anyhow::Result<()> {
         let ctx = Context::new(&self, "test_service".to_string());
         let ctx = ctx.child_action_context(&self, params.clone(), Some(opts.clone()), action_name);
@@ -271,7 +271,7 @@ impl ServiceBroker {
                 ctx.request_id
             )
         }
-        task::spawn( async move {
+        task::spawn(async move {
             let result = (endpoint.action.handler)(ctx, Some(params));
             let _ = sender.send(Ok(result));
         });
@@ -483,14 +483,14 @@ impl PartialEq for ServiceBrokerMessage {
 
 #[derive(Debug)]
 pub struct HandlerResult {
-    // pub(crate) data: u32,
-    pub(crate) data : Box<dyn Any + Send + Sync>,
+    // pub  data: u32,
+    pub data: Box<dyn Any + Send + Sync>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CallOptions {
-    meta: Payload,
-    node_id: Option<String>,
+    pub meta: Payload,
+    pub node_id: Option<String>,
 }
 
 struct ServiceStatus<'a> {
@@ -521,10 +521,11 @@ mod tests {
         println!("test stop func");
     }
     fn action_func(context: Context, payload: Option<Payload>) -> HandlerResult {
-
         let data = fibonacci(40);
-        
-        HandlerResult {data: Box::new(data) }
+
+        HandlerResult {
+            data: Box::new(data),
+        }
     }
 
     fn get_test_broker(
@@ -535,7 +536,7 @@ mod tests {
             reciever: recv,
             started: false,
             namespace: None,
-            metdata: Payload {},
+            metdata: Payload::default(),
             sender,
             node_id: "test_node".to_string(),
             instance: "test_instance".to_string(),
@@ -674,19 +675,19 @@ mod tests {
 
                         let _ = sender.send(ServiceBrokerMessage::Call {
                             action_name: "action_func".to_string(),
-                            params: Payload {},
+                            params: Payload::default(),
                             opts: CallOptions {
-                                meta: Payload {},
+                                meta: Payload::default(),
                                 node_id: Some("test_node".to_string()),
                             },
                             result_channel: one_sender,
                         });
                         let _result = recv.await;
-                        println!("{:?}" , _result);
+                        println!("{:?}", _result);
                     });
                     jhs.push(jh);
                 }
-                for jh in jhs{
+                for jh in jhs {
                     jh.await;
                 }
                 let end = Local::now();

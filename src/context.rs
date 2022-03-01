@@ -67,7 +67,7 @@ impl Context {
     pub fn new(broker: &ServiceBroker, service: String) -> Self {
         let id = utils::generate_uuid();
         let request_id = id.clone();
-        let meta = Payload {};
+        let meta = Payload::default();
 
         Self {
             id,

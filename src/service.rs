@@ -12,13 +12,13 @@ pub struct Service {
     pub name: String,
     pub full_name: String,
     pub version: String,
-    pub(crate) settings: HashMap<String, String>,
-    pub(crate) schema: Schema,
-    pub(crate) original_schema: Option<Schema>,
-    pub(crate) metadata: HashMap<String, String>,
+    pub  settings: HashMap<String, String>,
+    pub  schema: Schema,
+    pub  original_schema: Option<Schema>,
+    pub  metadata: HashMap<String, String>,
     pub actions: Option<Vec<Action>>,
     pub events: Option<HashMap<String, Event>>,
-    pub(crate) broker_sender: UnboundedSender<ServiceBrokerMessage>,
+    pub  broker_sender: UnboundedSender<ServiceBrokerMessage>,
 }
 
 impl PartialEq for Service {
@@ -37,18 +37,18 @@ impl PartialEq for Service {
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct Schema {
-    pub(crate) mixins: Option<Vec<SchemaMixins>>,
-    pub(crate) actions: Option<Vec<SchemaActions>>,
-    pub(crate) events: Option<Vec<SchemaEvents>>,
-    pub(crate) merged: SchemaMerged,
-    pub(crate) name: String,
-    pub(crate) version: Option<String>,
-    pub(crate) settings: HashMap<String, String>,
-    pub(crate) metadata: Option<HashMap<String, String>>,
-    pub(crate) created: Option<fn()>,
-    pub(crate) started: Option<fn()>,
-    pub(crate) stopped: Option<fn()>,
-    pub(crate) dependencies: Option<Vec<String>>,
+    pub mixins: Option<Vec<SchemaMixins>>,
+    pub  actions: Option<Vec<SchemaActions>>,
+    pub  events: Option<Vec<SchemaEvents>>,
+    pub  merged: SchemaMerged,
+    pub  name: String,
+    pub  version: Option<String>,
+    pub  settings: HashMap<String, String>,
+    pub metadata: Option<HashMap<String, String>>,
+    pub  created: Option<fn()>,
+    pub  started: Option<fn()>,
+    pub  stopped: Option<fn()>,
+    pub  dependencies: Option<Vec<String>>,
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
@@ -69,15 +69,15 @@ pub enum SchemaMerged {
 }
 #[derive(PartialEq, Debug)]
 pub struct ServiceSpec {
-    pub(crate) name: String,
-    pub(crate) version: String,
-    pub(crate) full_name: String,
+    pub  name: String,
+    pub  version: String,
+    pub  full_name: String,
     settings: HashMap<String, String>,
     /*
-    pub(crate)metadata
-    pub(crate)*/
-    pub(crate) actions: Option<Vec<Action>>,
-    pub(crate) events: Option<Vec<Event>>,
+    pub metadata
+    pub */
+    pub  actions: Option<Vec<Action>>,
+    pub  events: Option<Vec<Event>>,
 }
 
 impl Service {

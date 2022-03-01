@@ -11,7 +11,7 @@ pub struct Registry {
     broker: Arc<ServiceBroker>,
     nodes: NodeCatalog,
     services: ServiceCatalog,
-    pub(crate) actions: ActionCatalog,
+    pub  actions: ActionCatalog,
     /*
     events
     metrics
