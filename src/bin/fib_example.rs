@@ -15,9 +15,9 @@ async fn main() {
     let mut broker = get_broker();
     let registry = get_registry(broker.sender.clone());
     let action = Action {
-        name: "action_func".to_string(),
+        name: "fib_func".to_string(),
         visibility: Visibility::Public,
-        handler: action_func,
+        handler: fib_func,
     };
     let broker_sender = broker.sender.clone();
     let service = get_test_service(None, None, Some(vec![action]), Some(broker_sender.clone()));
@@ -56,9 +56,9 @@ async fn main() {
         let (one_sender, one_recv) = oneshot::channel();
 
         let _ = sender.send(ServiceBrokerMessage::Call {
-            action_name: "action_func".to_string(),
+            action_name: "fib_func".to_string(),
             params: Payload {
-                data: serde_json::to_value(ActionParams { num: 4 }).unwrap(),
+                data: serde_json::to_value(ActionParams { num: 9 }).unwrap(),
             },
             opts: CallOptions {
                 meta: Payload::default(),
@@ -67,7 +67,7 @@ async fn main() {
             result_channel: one_sender,
         });
         let _result = one_recv.await.unwrap().unwrap();
-        println!("{:?}", _result.data.is::<i32>());
+        println!("{:?}", _result.data.downcast::<u32>().unwrap());
         drop(sender);
     })
     .await;
@@ -97,15 +97,15 @@ fn test_merge_func() {
     println!("test merge function");
 }
 fn test_started_func() {
-    println!("test start func");
+    println!("service started");
 }
 fn test_created_func() {
-    println!("test created func");
+    println!("service created ");
 }
 fn test_stop_func() {
     println!("test stop func");
 }
-fn action_func(context: Context, payload: Option<Payload>) -> HandlerResult {
+fn fib_func(context: Context, payload: Option<Payload>) -> HandlerResult {
     let invalid_params = HandlerResult {
         data: Box::new("Invalid parameters".to_string()),
     };
