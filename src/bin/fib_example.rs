@@ -1,5 +1,6 @@
 use serde::*;
 use std::collections::HashMap;
+use std::env;
 use std::sync::Arc;
 
 use molecular_rust::broker::*;
@@ -12,6 +13,15 @@ use tokio::sync::oneshot;
 
 #[tokio::main]
 async fn main() {
+    let mut args = env::args();
+    let _ = args.next();
+    let call_name = args.next().expect("Function name should be provided");
+    let call_param: u32 = args
+        .next()
+        .expect("Provide parameters")
+        .parse()
+        .expect("Invalid parameters");
+
     let mut broker = get_broker();
     let registry = get_registry(broker.sender.clone());
     let action = Action {
@@ -56,9 +66,9 @@ async fn main() {
         let (one_sender, one_recv) = oneshot::channel();
 
         let _ = sender.send(ServiceBrokerMessage::Call {
-            action_name: "fib_func".to_string(),
+            action_name: call_name,
             params: Payload {
-                data: serde_json::to_value(ActionParams { num: 9 }).unwrap(),
+                data: serde_json::to_value(ActionParams { num: call_param }).unwrap(),
             },
             opts: CallOptions {
                 meta: Payload::default(),
