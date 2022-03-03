@@ -6,6 +6,7 @@ use std::{
 
 use anyhow::{bail, Result};
 use log::{debug, info, warn};
+use serde::Deserialize;
 
 use crate::{
     context::Context,
@@ -497,6 +498,7 @@ pub struct HandlerResult {
     // pub(crate) data: u32,
     pub(crate) data: Box<dyn Any + Send + Sync>,
 }
+
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CallOptions {

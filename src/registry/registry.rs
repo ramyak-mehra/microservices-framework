@@ -1,4 +1,7 @@
-use crate::{errors::RegistryError, service::ServiceSpec, ServiceBroker, ServiceBrokerMessage};
+use crate::{
+    errors::RegistryError, packet::PayloadInfo, service::ServiceSpec, ServiceBroker,
+    ServiceBrokerMessage,
+};
 
 use super::*;
 use anyhow::bail;
@@ -194,7 +197,7 @@ impl Registry {
     fn get_node_info(&self, node_id: &str) -> Option<Node> {
         todo!()
     }
-    fn process_node_info(&self) {
+    pub(crate) fn process_node_info(&self, node_id: &str, payload: PayloadInfo) {
         todo!()
     }
     pub fn get_node_list(&self, only_available: bool, with_services: bool) -> Vec<&Node> {

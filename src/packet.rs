@@ -1,11 +1,22 @@
 use crate::{
     errors::PacketError,
     registry::{Client, Payload},
+    HandlerResult,
 };
 use anyhow::bail;
 use serde::Serialize;
 use serde_json::*;
 use std::{any, fmt::Display};
+
+#[derive(Debug, Clone, Serialize)]
+#[repr(usize)]
+pub enum DataType {
+    Undefined = 0,
+    Null = 1,
+    Json = 2,
+    Buffer = 3,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub enum PacketType {
     Unknown,
@@ -121,6 +132,27 @@ pub(crate) struct PayloadRequest {
     pub(crate) groups: Option<Vec<String>>,
 }
 
+impl PacketPayload for PayloadResponse {
+    fn tipe(&self) -> PacketType {
+        PacketType::Response
+    }
+}
+#[derive(Debug, Serialize)]
+
+pub(crate) struct PayloadResponse {
+    pub(crate) ver: String,
+    pub(crate) sender: String,
+    pub(crate) id: String,
+    pub(crate) success: bool,
+
+    pub(crate) data: Vec<u8>,
+
+    pub(crate) error: String,
+    pub(crate) meta: String,
+    pub(crate) stream: bool,
+    pub(crate) seq: i32,
+}
+
 impl PacketPayload for PayloadEvent {
     fn tipe(&self) -> PacketType {
         PacketType::Event
@@ -148,7 +180,7 @@ pub(crate) struct PayloadEvent {
 
 #[derive(Debug, Clone, Serialize)]
 pub(crate) struct PayloadHeartbeat {
-    pub(crate) cpu: Option<u32>,
+    pub(crate) cpu: u32,
 }
 impl PacketPayload for PayloadHeartbeat {
     fn tipe(&self) -> PacketType {

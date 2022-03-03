@@ -11,7 +11,7 @@ use crate::{
     constants::*,
     context::{Context, EventType},
     errors::{PacketError, ServiceBrokerError},
-    registry::{EndpointTrait, EventEndpoint, Node, Payload},
+    registry::{Action, EndpointTrait, EventEndpoint, Node, Payload},
     utils, HandlerResult,
 };
 use crate::{ServiceBroker, ServiceBrokerMessage};
@@ -23,6 +23,9 @@ struct TransitOptions {}
 
 struct Request {
     node_id: String,
+    action: Action,
+    ctx: Context,
+    resolve: fn(HandlerResult),
 }
 
 pub(crate) struct Transit<T: Transporter + Send + Sync> {
@@ -105,7 +108,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
         }
     }
     ///Send DISCONNECT to remote nodes
-    fn send_disconnect_packet() {
+    pub fn send_disconnect_packet(&self) {
         todo!("after publish")
     }
     async fn make_subsciptions(&self) {
@@ -184,6 +187,32 @@ impl<T: Transporter + Send + Sync> Transit<T> {
             task::spawn_blocking(move || (endpoint.action.handler)(ctx, Some(params))).await?;
         todo!("handler sending response");
         Ok(())
+    }
+
+    pub async fn response_handler(&mut self, packet: PayloadResponse) {
+        let id = packet.id;
+        let req = self.pending_requests.get_mut(&id);
+        match req {
+            Some(req) => {
+                debug!(
+                    "<= Response {} is received from {}.",
+                    req.action.name, packet.sender
+                );
+                req.ctx.node_id = Some(packet.sender);
+                //TODO: merge meta
+                self.remove_pending_request(&id);
+                if !packet.success {
+                    //TODO:Call error
+                } else {
+                    //TODO: (req.resolve)(packet.data)
+                }
+            }
+            None => {
+                debug!("Orphan response is received. Maybe the request is timed out earlier. ID:{} , Sender:{}" , id , packet.sender);
+                //TODO: update the metrics
+                return;
+            }
+        }
     }
 
     ///Send an event to a remote node.
@@ -430,8 +459,14 @@ impl<T: Transporter + Send + Sync> Transit<T> {
         }
     }
 }
+#[derive(Debug, Display)]
 
-enum TransitMessage {}
+pub enum TransitMessage {
+    #[display(fmt = "Disconnect packet")]
+    SendDisconnectPacket,
+    #[display(fmt = "Heartbeat packet")]
+    SendHeartBeat(u32),
+}
 
 #[derive(Debug, Display)]
 enum TransporterEvents {

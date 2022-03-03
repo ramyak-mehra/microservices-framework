@@ -1,45 +1,79 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use chrono::Duration;
 use derive_more::Display;
 use log::{info, warn};
 use serde_json::{json, Value};
-use tokio::sync::{mpsc, RwLock};
+use tokio::sync::{mpsc, RwLock, RwLockReadGuard};
 
 use crate::{
-    transporter::{Transit, Transporter},
+    errors::TransitError,
+    packet::{PayloadHeartbeat, PayloadInfo},
+    transporter::{transit::TransitMessage, Transit, Transporter},
     Registry, ServiceBroker, ServiceBrokerMessage,
 };
 
+use super::Node;
+
 #[async_trait]
 trait Discoverer {
+    fn transit_sender(&self) -> mpsc::UnboundedSender<TransitMessage>;
+
     fn registry(&self) -> Arc<RwLock<Registry>>;
 
     fn broker_sender(&self) -> mpsc::UnboundedSender<ServiceBrokerMessage>;
 
     fn broker(&self) -> Arc<ServiceBroker>;
 
-    fn opts(&self)->&DiscovererOpts;
+    fn opts(&self) -> &DiscovererOpts;
 
-    fn transit<T: Transporter + Send +Sync>(&self) -> &Transit<T>;
+    fn local_node(&self) -> &Node;
     async fn stop(&self) {
         self.stop_heartbeat_timers().await;
     }
-
-
-    async fn start_heatbeat_timers(&self){
+    fn init(&mut self, registry: Arc<RwLock<Registry>>);
+    async fn start_heatbeat_timers(&self) {
         self.stop_heartbeat_timers().await;
-        // if 
+        // if
     }
 
-
-
-    async fn stop_heartbeat_timers(&self){
+    async fn stop_heartbeat_timers(&self) {
         todo!()
     }
 
+    async fn check_offline_nodes(&self) {
+        if self.opts().disable_offline_node_removing {
+            return;
+        }
+        todo!("check offlien nodes")
+    }
+
+    async fn heartbeat_received(&self, node_id: &str, payload: PayloadHeartbeat) {
+        let registry = self.registry();
+        let registry = registry.read().await;
+        let node = registry.nodes.get_node(node_id);
+        todo!("hearbeat_recieved see below")
+        //Payload while sending is heartbeat but it does not contain the necessary info to parse the payload.
+    }
+
+    async fn process_remote_node_info(&self, node_id: &str, payload: PayloadInfo) {
+        let registry = &self.registry();
+        let registry = registry.write().await;
+        registry.process_node_info(node_id, payload);
+    }
+
+    async fn send_heartbeat(&self) -> anyhow::Result<()> {
+        let cpu = self.local_node().cpu.clone();
+        let _ = self
+            .transit_sender()
+            .send(TransitMessage::SendHeartBeat(cpu))?;
+
+        Ok(())
+    }
+
     ///Discover a new or old node by node_id.
-    fn discover_node(&self);
+    fn discover_node(&self, node_id: &str);
 
     /// Discover all nodes (after connected)
     fn disocer_all_nodes(&self);
@@ -53,9 +87,17 @@ trait Discoverer {
 
     fn send_local_node_info(&self);
 
-    fn local_node_disconnected(&self) {
-        todo!("check if it is present");
-        // self.transit().send_disconnect_packet();
+    fn local_node_disconnected(&self) -> anyhow::Result<()> {
+        let _ = self
+            .transit_sender()
+            .send(TransitMessage::SendDisconnectPacket)
+            .map_err(|err| {
+                return TransitError::SendError(
+                    TransitMessage::SendDisconnectPacket,
+                    err.to_string(),
+                );
+            })?;
+        Ok(())
     }
 
     fn remote_node_disconnected(&self, node_id: &str, is_unexpected: bool) {
@@ -88,6 +130,7 @@ enum NodeEvents {
     #[display(fmt = "$node.disconnected")]
     Disconnected,
 }
-struct DiscovererOpts{
-    
+struct DiscovererOpts {
+    disable_offline_node_removing: bool,
+    clean_offline_nodes_timeout: Duration,
 }

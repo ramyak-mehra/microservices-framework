@@ -37,7 +37,7 @@ pub(crate) trait Transporter {
 
     async fn incoming_message(&self);
     //Received data. It's a wrapper for middlewares.
-    async fn receive(&self, cmd: &str, data: Vec<u8>) {
+    async fn receive(&self, cmd: PacketType, data: Vec<u8>) {
         self.incoming_message().await;
     }
 

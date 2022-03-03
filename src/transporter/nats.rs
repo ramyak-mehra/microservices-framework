@@ -1,5 +1,7 @@
 use std::{any, sync::Arc};
 
+use crate::ServiceBroker;
+
 use super::{balanced_event_regex_replace, PacketType, Transporter};
 use anyhow::bail;
 use async_nats::*;
@@ -10,16 +12,18 @@ struct NatsTransporter {
     has_built_in_balancer: bool,
     subscriptions: Vec<Arc<Subscription>>,
     client: Option<Connection>,
+    broker: Arc<ServiceBroker>,
 }
 
 impl NatsTransporter {
-    fn new(opts: NatsOptions) -> Self {
+    fn new(opts: NatsOptions, broker: Arc<ServiceBroker>) -> Self {
         Self {
             opts,
             connected: false,
             has_built_in_balancer: true,
             subscriptions: Vec::new(),
             client: None,
+            broker,
         }
     }
     async fn connect(&mut self, url: String) -> anyhow::Result<()> {
@@ -53,7 +57,7 @@ impl NatsTransporter {
         Ok(())
     }
 
-    async fn subscibe_balanced_request(&mut self, action: &str) -> anyhow::Result<()> {
+    async fn subscibe_balanced_request(&'static mut self, action: &str) -> anyhow::Result<()> {
         let topic = format!("{}.{}B.{}", self.prefix(), PacketType::Request, action);
 
         let client = self.get_client()?;
@@ -63,7 +67,8 @@ impl NatsTransporter {
 
         tokio::spawn(async move {
             while let Some(msg) = sub.next().await {
-                todo!("HANDLE SUBS MESSGES IN BALANCED REQ")
+                self.receive(PacketType::Request, msg.data);
+                // todo!("HANDLE SUBS MESSGES IN BALANCED REQ")
             }
         });
 
@@ -86,7 +91,8 @@ impl NatsTransporter {
 
         tokio::spawn(async move {
             while let Some(msg) = sub.next().await {
-                todo!("HANDLE SUBS MESSGES IN BALANCED EVENT")
+                todo!("HANDLE SUBS MESSAGE IN BALANCED EVENT")
+                // self.receive(PacketType::Event, msg.data);
             }
         });
 

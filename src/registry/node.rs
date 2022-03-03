@@ -23,7 +23,7 @@ pub struct Node {
     hostname: Option<String>,
     udp_address: Option<IpAddr>,
     pub raw_info: Option<Value>,
-    pub cpu: Option<u32>,
+    pub cpu: u32,
     /*
     cpuseq
     */
@@ -54,7 +54,7 @@ impl Node {
             udp_address: None,
             services: Vec::new(),
             seq: 0,
-            cpu: None,
+            cpu: 0,
             offline_since: None,
         }
     }
