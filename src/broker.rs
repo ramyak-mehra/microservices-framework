@@ -6,7 +6,7 @@ use std::{
 
 use anyhow::{bail, Result};
 use log::{debug, info, warn};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     context::Context,
@@ -114,7 +114,7 @@ pub struct ServiceBroker {
     reciever: UnboundedReceiver<ServiceBrokerMessage>,
     pub(crate) sender: UnboundedSender<ServiceBrokerMessage>,
     pub(crate) started: bool,
-    namespace: Option<String>,
+    pub(crate) namespace: Option<String>,
     metdata: Payload,
     pub node_id: String,
     pub instance: String,
@@ -419,12 +419,17 @@ pub enum ServiceBrokerMessage {
         data: Value,
         opts: Value,
     },
+    EmitLocalServices {
+        ctx: Context,
+        result_channel: oneshot::Sender<bool>,
+    },
     Call {
         action_name: String,
         params: Payload,
         opts: CallOptions,
         result_channel: oneshot::Sender<anyhow::Result<HandlerResult>>,
     },
+
     Close,
 }
 impl PartialEq for ServiceBrokerMessage {

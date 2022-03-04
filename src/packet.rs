@@ -118,18 +118,19 @@ impl PacketPayload for PayloadRequest {
 
 #[derive(Debug, Clone, Serialize)]
 pub(crate) struct PayloadRequest {
-    pub(crate) action: String,
     pub(crate) sender: String,
     pub(crate) id: String,
-    pub(crate) parent_id: String,
-    pub(crate) request_id: String,
-    pub(crate) caller: String,
-    pub(crate) level: usize,
-    pub(crate) tracing: bool,
+    pub(crate) action: String,
+    pub(crate) params: Option<Payload>,
     pub(crate) meta: Payload,
     pub(crate) timeout: Option<i64>,
-    pub(crate) params: Payload,
-    pub(crate) groups: Option<Vec<String>>,
+    pub(crate) level: usize,
+    pub(crate) tracing: bool,
+    pub(crate) parent_id: Option<String>,
+    pub(crate) request_id: String,
+    pub(crate) stream:bool,
+    pub(crate) seq : i32,
+    pub(crate) caller: String,
 }
 
 impl PacketPayload for PayloadResponse {
@@ -144,9 +145,7 @@ pub(crate) struct PayloadResponse {
     pub(crate) sender: String,
     pub(crate) id: String,
     pub(crate) success: bool,
-
     pub(crate) data: Vec<u8>,
-
     pub(crate) error: String,
     pub(crate) meta: String,
     pub(crate) stream: bool,
@@ -164,6 +163,7 @@ impl PacketPayload for PayloadEvent {
 
 #[derive(Debug, Clone, Serialize)]
 pub(crate) struct PayloadEvent {
+    pub(crate) sender:String,
     pub(crate) id: String,
     pub(crate) event: String,
     pub(crate) data: Payload,

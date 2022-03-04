@@ -23,7 +23,7 @@ pub struct ContextOptions {
     pub retries: Option<usize>,
 }
 
-#[derive(Debug)]
+#[derive(Debug , Clone)]
 pub struct Context {
     pub id: String,
     pub request_id: Option<String>,
@@ -61,7 +61,7 @@ pub struct Context {
     */
     cached_result: bool,
 }
-#[derive(Debug)]
+#[derive(Debug , Clone)]
 pub enum EventType {
     Emit,
     Broadcast,
@@ -98,7 +98,7 @@ impl Context {
             service: service,
             params: None,
             event_name: None,
-            need_ack:false
+            need_ack: false,
         }
     }
 
@@ -149,7 +149,7 @@ impl Context {
             service: service,
             params: Some(params),
             event_name: None,
-            need_ack:self.need_ack
+            need_ack: self.need_ack,
         }
     }
 
@@ -254,4 +254,39 @@ impl Context {
     fn finish_span() {
         todo!("while implementing tracing")
     }
+}
+#[derive(Debug)]
+pub struct ActionContext {
+    pub id: String,
+    pub request_id: String,
+    broker_sender: UnboundedSender<ServiceBrokerMessage>,
+    action: String,
+    pub parent_id: Option<String>,
+    pub params: Option<Payload>,
+    pub meta: Payload,
+    pub caller: String,
+
+    locals: Option<Payload>,
+    pub node_id: String,
+
+    pub tracing: bool,
+    pub level: usize,
+
+    service: String,
+
+    pub options: ContextOptions,
+    parent_ctx: Option<Box<Context>>,
+    pub need_ack: bool,
+    /*
+    tracing
+    span
+    span_stack
+    ack_id
+    startTime = null;
+    startHrTime = null;
+    stopTime = null;
+    duration = null;
+    error = null;
+    */
+    cached_result: bool,
 }

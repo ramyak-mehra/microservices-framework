@@ -16,14 +16,19 @@ use crate::{
 };
 use crate::{ServiceBroker, ServiceBrokerMessage};
 use anyhow::{self, bail};
-use tokio::{sync::mpsc, task};
+use tokio::{
+    sync::{mpsc, oneshot},
+    task,
+};
 
 type P = PacketType;
-struct TransitOptions {}
+struct TransitOptions {
+    max_queue_size: Option<usize>,
+}
 
 struct Request {
-    node_id: String,
-    action: Action,
+    node_id: Option<String>,
+    action: String,
     ctx: Context,
     resolve: fn(HandlerResult),
 }
@@ -140,8 +145,50 @@ impl<T: Transporter + Send + Sync> Transit<T> {
         todo!("implement payload parsing first")
     }
 
-    fn event_handler(&self) {
-        todo!("implement the payload parsing first")
+    async fn event_handler(&self, payload: PayloadEvent) -> anyhow::Result<bool> {
+        debug!(
+            "Event {} received from {} node {:?}",
+            payload.event, payload.sender, payload.groups
+        );
+        if !self.broker.started {
+            warn!(
+                "Incoming {} event from {} node is dropped, because broker is stopped",
+                payload.event, payload.sender
+            );
+            return Ok(false);
+        }
+        //TODO: handle service name not present
+        let mut ctx = Context::new(self.broker.as_ref(), "".to_string());
+        ctx.id = payload.id;
+        ctx.event_name = Some(payload.event);
+        ctx.params = Some(payload.data);
+        ctx.event_groups = Some(payload.groups);
+        ctx.event_type = if payload.broadcast {
+            EventType::Broadcast
+        } else {
+            EventType::Emit
+        };
+        ctx.meta = payload.meta;
+        ctx.level = payload.level;
+        ctx.tracing = payload.tracing;
+        ctx.parent_id = payload.parentID;
+        ctx.request_id = Some(payload.requestID);
+        ctx.caller = Some(payload.caller);
+        ctx.node_id = Some(payload.sender);
+        let (send, recv) = oneshot::channel::<bool>();
+        let send_res = self
+            .broker_sender
+            .send(ServiceBrokerMessage::EmitLocalServices {
+                ctx,
+                result_channel: send,
+            });
+        if send_res.is_err(){
+           return Ok(false);
+        }
+        match recv.await {
+            Ok(value) => Ok(value),
+            Err(_) => Ok(false),
+        }
     }
 
     async fn request_handler(&self, payload: PayloadRequest) -> anyhow::Result<()> {
@@ -166,7 +213,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
         let mut ctx = Context::new(self.broker.as_ref(), service);
         ctx.id = payload.id;
         //TODO: ctx.setParams
-        ctx.parent_id = Some(payload.parent_id);
+        ctx.parent_id = payload.parent_id;
         ctx.request_id = Some(payload.request_id);
         ctx.caller = Some(payload.caller);
         ctx.meta = payload.meta;
@@ -183,8 +230,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
         let endpoint = endpoint.clone();
         ctx.set_endpoint(&endpoint, Some(action_name), None);
         let params = payload.params;
-        let result =
-            task::spawn_blocking(move || (endpoint.action.handler)(ctx, Some(params))).await?;
+        let result = task::spawn_blocking(move || (endpoint.action.handler)(ctx, params)).await?;
         todo!("handler sending response");
         Ok(())
     }
@@ -196,7 +242,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
             Some(req) => {
                 debug!(
                     "<= Response {} is received from {}.",
-                    req.action.name, packet.sender
+                    req.action, packet.sender
                 );
                 req.ctx.node_id = Some(packet.sender);
                 //TODO: merge meta
@@ -212,6 +258,64 @@ impl<T: Transporter + Send + Sync> Transit<T> {
                 //TODO: update the metrics
                 return;
             }
+        }
+    }
+
+    async fn request(&mut self, ctx: Context, resolve: fn(HandlerResult)) -> anyhow::Result<()> {
+        if self.opts.max_queue_size.is_some() {
+            if self.pending_requests.len() >= self.opts.max_queue_size.unwrap() {
+                //TODO: Proper error handling
+                bail!("Max queue size reached")
+            }
+        }
+        self._send_request(ctx, resolve).await;
+        Ok(())
+    }
+
+    async fn _send_request(&mut self, ctx: Context, resolve: fn(HandlerResult)) {
+        //TODO: handle streaming response
+        let node_id = ctx.node_id.to_owned();
+        let action = ctx.action().to_string();
+
+        let request = Request {
+            node_id: node_id.clone(),
+            action: action.clone(),
+            ctx: ctx.clone(),
+            resolve,
+        };
+        let id = ctx.id;
+        let payload = PayloadRequest {
+            action: action.clone(),
+            sender: self.node_id.clone(),
+            id: id.clone(),
+            parent_id: ctx.parent_id,
+            request_id: ctx.request_id.unwrap(),
+            caller: ctx.caller.unwrap(),
+          
+            level: ctx.level,
+            tracing: ctx.tracing,
+            meta: ctx.meta,
+            timeout: ctx.options.timeout,
+            params: ctx.params,
+            stream: false,
+            seq: 0,
+        };
+        let packet = Packet::new(P::Request, node_id.clone(), payload);
+        let node_name = match node_id {
+            Some(node_id) => node_id,
+            None => "someone".to_string(),
+        };
+        debug!("=> Send {} request to {} node", action, node_name);
+
+        self.pending_requests.insert(id, request);
+        let result = self.publish(packet).await;
+        if result.is_err() {
+            let err = result.err().unwrap();
+            let message = format!(
+                "Unable to send {} request to {} node. {} ",
+                action, node_name, err
+            );
+            self.publish_error(err, FAILED_SEND_REQUEST_PACKET, message);
         }
     }
 
@@ -262,13 +366,14 @@ impl<T: Transporter + Send + Sync> Transit<T> {
                 .expect("No request id present in the context"),
             caller: ctx.caller.expect("No caller present in the context"),
             needAck: ctx.need_ack,
+            sender: self.node_id.clone(),
         };
         let packet = Packet::new(P::Event, ctx.node_id, payload_event);
         let result = self.publish(packet).await;
         if result.is_err() {
             let err = result.unwrap_err();
             let message = format!("Unable to send {} event to groups. {}", event_name, err);
-            self.send_error(err, FAILED_SEND_EVENT_PACKET, message);
+            self.publish_error(err, FAILED_SEND_EVENT_PACKET, message);
         }
         Ok(())
     }
@@ -280,7 +385,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
     fn remove_pending_request_by_node(&mut self, node_id: &str) {
         debug!("Remove pending requests of {} node.", node_id);
         self.pending_requests.retain(|key, value| {
-            if value.node_id == node_id {
+            if value.node_id.is_some() && value.node_id.as_ref().unwrap() == node_id {
                 //TODO: add the req.reject error
                 return false;
             }
@@ -311,7 +416,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
         if result.is_err() {
             let err = result.unwrap_err();
             let message = format!("Unable to send DISCOVER packet. {}", err);
-            self.send_error(err, FAILED_NODES_DISCOVERY, message);
+            self.publish_error(err, FAILED_NODES_DISCOVERY, message);
         }
     }
     async fn discover_node(&self, node_id: String) {
@@ -323,7 +428,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
                 "Unable to send DISCOVER packet to {} node. {}",
                 node_id, err
             );
-            self.send_error(err, FAILED_NODES_DISCOVERY, message);
+            self.publish_error(err, FAILED_NODES_DISCOVERY, message);
         }
     }
 
@@ -348,7 +453,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
                 None => "".to_string(),
             };
             let message = format!("Unable to send PING packet to {} node. {}", node_id, err);
-            self.send_error(err, FAILED_SEND_PING_PACKET, message);
+            self.publish_error(err, FAILED_SEND_PING_PACKET, message);
         }
     }
 
@@ -367,7 +472,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
                 "Unable to send PONG packet to {} node. {}",
                 payload.sender, err
             );
-            self.send_error(err, FAILED_SEND_PONG_PACKET, message);
+            self.publish_error(err, FAILED_SEND_PONG_PACKET, message);
         }
 
         Ok(())
@@ -403,11 +508,11 @@ impl<T: Transporter + Send + Sync> Transit<T> {
         if result.is_err() {
             let error = result.unwrap_err();
             let message = format!("Unable to send HEARTBEAT packet. {}", error);
-            self.send_error(error, FAILED_TO_SEND_HEARTBEAT, message);
+            self.publish_error(error, FAILED_TO_SEND_HEARTBEAT, message);
         }
     }
 
-    async fn subscibe(&self, topic: String, node_id: String) -> anyhow::Result<()> {
+    async fn subscribe(&self, topic: String, node_id: String) -> anyhow::Result<()> {
         self.tx
             .subscibe(Topic {
                 node_id: Some(node_id),
@@ -433,7 +538,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
         }
     }
 
-    fn send_error(&self, error: anyhow::Error, tipe: &str, message: String) {
+    fn publish_error(&self, error: anyhow::Error, tipe: &str, message: String) {
         error!("{}", message);
         let err = error.to_string();
         let data = json!({

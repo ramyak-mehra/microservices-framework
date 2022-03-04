@@ -2,15 +2,14 @@ pub mod nats;
 pub mod transit;
 use std::sync::Arc;
 
+pub(crate) use crate::{errors::ServiceBrokerError, packet::*};
+use crate::{serializers::BaseSerializer, ServiceBroker};
 use anyhow::bail;
 use async_trait::async_trait;
 use lazy_static::lazy_static;
 use regex::Regex;
 use serde::Serialize;
 pub(crate) use transit::Transit;
-
-pub(crate) use crate::{errors::ServiceBrokerError, packet::*};
-use crate::{serializers::BaseSerializer, ServiceBroker};
 type PT = PacketType;
 fn balanced_event_regex_replace(topic: &str) -> String {
     lazy_static! {
@@ -23,7 +22,7 @@ fn balanced_event_regex_replace(topic: &str) -> String {
 pub(crate) trait Transporter {
     fn broker(&self) -> &Arc<ServiceBroker>;
     fn connected(&self) -> bool;
-    fn prefix(&self) -> String;
+    fn prefix(&self) -> &String;
     async fn connect(&self);
     fn on_connected(&mut self, was_reconnect: bool);
     async fn disconnect(&self);

@@ -13,10 +13,15 @@ struct NatsTransporter {
     subscriptions: Vec<Arc<Subscription>>,
     client: Option<Connection>,
     broker: Arc<ServiceBroker>,
+    prefix: String,
 }
 
 impl NatsTransporter {
     fn new(opts: NatsOptions, broker: Arc<ServiceBroker>) -> Self {
+        let prefix = match &broker.namespace {
+            Some(prefix) => prefix.to_owned(),
+            None => "MOL".to_string(),
+        };
         Self {
             opts,
             connected: false,
@@ -24,6 +29,7 @@ impl NatsTransporter {
             subscriptions: Vec::new(),
             client: None,
             broker,
+            prefix,
         }
     }
     async fn connect(&mut self, url: String) -> anyhow::Result<()> {
@@ -129,15 +135,15 @@ impl NatsTransporter {
 
 impl Transporter for NatsTransporter {
     fn broker(&self) -> &Arc<crate::ServiceBroker> {
-        todo!()
+        &self.broker
     }
 
     fn connected(&self) -> bool {
-        todo!()
+        self.connected
     }
 
-    fn prefix(&self) -> String {
-        todo!()
+    fn prefix(&self) -> &String {
+        &self.prefix
     }
 
     fn connect<'life0, 'async_trait>(
