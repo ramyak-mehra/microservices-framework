@@ -8,6 +8,7 @@ pub mod registry;
 pub mod service_catalog;
 pub mod service_item;
 pub mod discoverers;
+pub mod event_catalog;
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -31,10 +32,10 @@ use service_item::ServiceItem;
 
 type ActionsMap = HashMap<String, EndpointList<ActionEndpoint>>;
 
+lazy_static! {
+    static ref RE: Regex = Regex::new(r"^\$").unwrap();
+}
 fn get_internal_service_regex_match(text: &str) -> bool {
-    lazy_static! {
-        static ref RE: Regex = Regex::new(r"^\$").unwrap();
-    }
     RE.is_match(text)
 }
 
@@ -42,7 +43,7 @@ fn get_internal_service_regex_match(text: &str) -> bool {
 pub struct Logger {}
 
 pub type ActionHandler = fn(Context, Option<Payload>) -> HandlerResult;
-
+pub type EventHandler = fn(Context);
 #[derive(Default, Debug, PartialEq, Eq, Clone , Serialize)]
 pub struct Payload {}
 
@@ -79,7 +80,9 @@ pub enum Visibility {
 }
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct Event {
-    pub event_name: String,
+    pub name: String,
+    pub group : Option<String>,
+    pub handler: EventHandler
 }
 
 ///Endpoint trait for endpoint list

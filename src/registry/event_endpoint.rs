@@ -1,9 +1,9 @@
 use super::*;
 
-#[derive(Clone)]
+#[derive(Clone,Debug)]
 pub struct EventEndpoint {
-    endpoint: Endpoint,
-    event: Event,
+ endpoint: Endpoint,
+  pub  event: Event,
 }
 
 impl EndpointTrait for EventEndpoint {

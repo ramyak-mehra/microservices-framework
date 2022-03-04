@@ -14,8 +14,8 @@ impl ActionCatalog {
             Some(list) => list.add(node, service, action),
             None => {
                 let name = action.name.clone();
-                let mut list = EndpointList::new(name, None);
-                let name = action.name.clone();
+                let mut list = EndpointList::new(name.clone(), None);
+                
                 list.add(node, service, action);
                 self.actions.insert(name, list);
             }

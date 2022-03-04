@@ -6,7 +6,7 @@ use super::*;
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct EndpointList<E: EndpointTrait + Clone> {
     pub name: String,
-    group: Option<String>,
+    pub group: Option<String>,
     internal: bool,
     pub endpoints: Vec<E>,
     local_endpoints: Vec<E>,
@@ -51,15 +51,15 @@ impl<E: EndpointTrait + Clone> EndpointList<E> {
     fn select<'a, S: Strategy>(
         &self,
         list: Vec<&'a E>,
-        ctx: &Context,
+        ctx: Option<&Context>,
         strategy: &RwLock<S>,
     ) -> Option<&'a E> {
         let mut strategy = strategy.blocking_write();
-        let ret = strategy.select(list, Some(ctx));
+        let ret = strategy.select(list, ctx);
         ret
     }
 
-    pub fn next<S: Strategy>(&self, ctx: &Context, strategy: &RwLock<S>) -> Option<&E> {
+    pub fn next<S: Strategy>(&self, ctx: Option<&Context>, strategy: &RwLock<S>) -> Option<&E> {
         if self.endpoints.is_empty() {
             return None;
         }
@@ -89,7 +89,7 @@ impl<E: EndpointTrait + Clone> EndpointList<E> {
 
         self.select(ep_list, ctx, strategy)
     }
-    pub fn next_local<S: Strategy>(&self, ctx: &Context, strategy: &RwLock<S>) -> Option<&E> {
+    pub fn next_local<S: Strategy>(&self, ctx: Option<&Context>, strategy: &RwLock<S>) -> Option<&E> {
         if self.local_endpoints.is_empty() {
             return None;
         }

@@ -69,7 +69,7 @@ pub struct BrokerOptions {
     metrics_rate: f32,
     wait_for_neighbours_interval: Duration,
     dont_wait_for_neighbours: bool,
-    strategy_factory: RwLock<RoundRobinStrategy>,
+    pub strategy_factory: RwLock<RoundRobinStrategy>,
     pub serializer: JSONSerializer,
     pub metadata: Value, /*
                          discover_node_id : fn()->String,
@@ -316,7 +316,7 @@ impl ServiceBroker {
                 .get_action_endpoints(action_name);
             match ep_list {
                 Some(ep_list) => {
-                    let ep = ep_list.next(ctx, &self.options.strategy_factory);
+                    let ep = ep_list.next(Some(ctx), &self.options.strategy_factory);
                     match ep {
                         Some(ep) => Ok(ep),
                         None => {
@@ -364,7 +364,7 @@ impl ServiceBroker {
         //Get local endpoint.
         match ep_list
             .unwrap()
-            .next_local(ctx, &self.options.strategy_factory)
+            .next_local(Some(ctx), &self.options.strategy_factory)
         {
             Some(ep) => Ok(ep),
             None => {
@@ -503,7 +503,6 @@ pub struct HandlerResult {
     // pub(crate) data: u32,
     pub(crate) data: Box<dyn Any + Send + Sync>,
 }
-
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CallOptions {
@@ -645,7 +644,6 @@ mod tests {
         };
         let service = get_test_service(None, None, Some(vec![action]), Some(sender.clone()));
         let registry = Registry::new(Arc::clone(&broker_arc), sender.clone());
-        let actions = registry.actions.clone();
         broker_original.registry = Some(registry);
         broker_original.start();
         let rt = tokio::runtime::Builder::new_multi_thread()
@@ -682,7 +680,6 @@ mod tests {
             task::spawn(async move {
                 service.init().await;
                 service.start().await;
-                println!("{:?}", actions);
                 let start = Local::now();
                 let sender = sender.clone();
                 let mut jhs = Vec::new();
