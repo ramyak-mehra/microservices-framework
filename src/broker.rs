@@ -380,10 +380,32 @@ impl ServiceBroker {
         self.registry.as_ref().unwrap().get_local_node_info(false)
     }
 
-    fn emit_local_services(&self, ctx: Context) {
-        todo!("event catalog implementation left")
+    fn get_event_groups(&self, event_name: &str) -> Option<Vec<String>> {
+        self.registry
+            .as_ref()
+            .expect("Registry not present")
+            .events
+            .get_groups(event_name)
+    }
 
-        // self.registry.
+    /// Has registered event listener for an event name?
+    fn has_event_listener(&self, event_name: &str) -> bool {
+        !self.get_event_listeners(event_name).is_empty()
+    }
+    /// Get all registered event listener for an event name.
+    fn get_event_listeners(&self, event_name: &str) -> Vec<&EventEndpoint> {
+        self.registry
+            .as_ref()
+            .expect("Registry not present")
+            .events
+            .get_all_endpoints(event_name, None)
+    }
+
+    /// Emit event to local nodes. It is called from transit when a remote event
+    ///  received or from `broadcastLocal`.
+    async fn emit_local_services(&self, ctx: Context) {
+        let registry = &self.registry.as_ref().expect("Registry not present");
+        registry.events.emit_local_services(ctx).await;
     }
 
     fn get_cpu_usage() {
