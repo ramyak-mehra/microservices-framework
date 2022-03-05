@@ -1,6 +1,6 @@
 use super::*;
 
-#[derive(Clone,Debug)]
+#[derive(PartialEq , Eq , Clone,Debug)]
 pub struct EventEndpoint {
  endpoint: Endpoint,
   pub  event: Event,

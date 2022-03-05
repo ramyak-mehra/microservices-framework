@@ -17,6 +17,7 @@ use super::service::Service;
 use crate::{context::Context, strategies::Strategy, HandlerResult};
 use action_catalog::ActionCatalog;
 pub use action_endpoint::ActionEndpoint;
+use event_catalog::EventCatalog;
 pub use endpoint_list::EndpointList;
 pub use event_endpoint::EventEndpoint;
 use lazy_static::lazy_static;
@@ -31,6 +32,7 @@ use service_item::ServiceItem;
 // pub use event_endpoint::EventEndpoint;
 
 type ActionsMap = HashMap<String, EndpointList<ActionEndpoint>>;
+type EventsMap = HashMap<String,EndpointList<EventEndpoint>>;
 
 lazy_static! {
     static ref RE: Regex = Regex::new(r"^\$").unwrap();

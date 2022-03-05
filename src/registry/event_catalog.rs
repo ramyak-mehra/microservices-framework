@@ -29,8 +29,7 @@ impl EventCatalog {
                 list.add(node, service, event);
             }
             None => {
-                let mut list=
-                    EndpointList::new(event_name, Some(group_name));
+                let mut list = EndpointList::new(event_name, Some(group_name));
 
                 list.add(node, service, event);
                 self.events.push(list);
@@ -83,7 +82,7 @@ impl EventCatalog {
         });
         res
     }
-    fn get_groups(&self, event_name: &str) -> Option<Vec<String>> {
+ pub   fn get_groups(&self, event_name: &str) -> Option<Vec<String>> {
         let groups: Option<Vec<String>> = self
             .events
             .iter()
@@ -101,10 +100,10 @@ impl EventCatalog {
         }
     }
 
-    fn get_all_endpoints(
+  pub  fn get_all_endpoints(
         &self,
         event_name: &str,
-        group_names: &Option<Vec<String>>,
+        group_names: Option<&Vec<String>>,
     ) -> Vec<&EventEndpoint> {
         let mut res = Vec::new();
         self.events.iter().for_each(|list| {
@@ -132,7 +131,7 @@ impl EventCatalog {
         //TODO:remove duplicates
         res
     }
-    async fn emit_local_services(&self, ctx: Context) {
+    pub async fn emit_local_services(&self, ctx: Context) {
         let sender = ctx.node_id();
         let event_name = ctx.event_name.as_ref().unwrap();
         let mut futures = Vec::new();

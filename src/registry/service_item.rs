@@ -10,6 +10,7 @@ pub struct ServiceItem {
     pub full_name: String,
     version: String,
     actions: ActionsMap,
+    events : EventsMap
     /*
     eventsmap
     metadata
@@ -22,6 +23,7 @@ impl ServiceItem {
             node: node.id.clone(),
             local,
             actions: HashMap::new(),
+            events : HashMap::new(),
             full_name: service.full_name.to_string(),
             version: service.version.to_string(),
             name: service.name.to_string(),
@@ -51,7 +53,8 @@ impl ServiceItem {
         todo!("Decide if we want an arc of action or make a copy of that actions")
     }
     pub fn add_event(&mut self, event: EndpointList<EventEndpoint>) {
-        todo!("Implement the events map")
+        let name = event.name.clone();
+        self.events.insert(name, event);
     }
     pub fn unique_name(&self) -> String {
         format!("{}{}{}", self.full_name, self.version, self.node)

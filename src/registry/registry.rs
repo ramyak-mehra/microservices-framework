@@ -15,8 +15,8 @@ pub struct Registry {
     pub(crate) nodes: NodeCatalog,
     services: ServiceCatalog,
     pub(crate) actions: ActionCatalog,
+    pub(crate) events: EventCatalog,
     /*
-    events
     metrics
     strategy factor
     discoverer
@@ -40,12 +40,14 @@ impl Registry {
         );
         let services = ServiceCatalog::default();
         let actions = ActionCatalog::default();
+        let events = EventCatalog::new(broker.clone());
         Registry {
             broker_sender,
             broker,
             nodes,
             services,
             actions,
+            events,
         }
     }
 
@@ -67,14 +69,14 @@ impl Registry {
             .services
             .has(&svc.full_name, Some(&self.broker.node_id))
         {
-            let node = self.nodes.local_node()?;
+            let node = self.nodes.local_node()?.clone();
 
-            let service_full_name = self.services.add(node, &svc, true);
+            let service_full_name = self.services.add(&node, &svc, true);
             if let Some(actions) = svc.actions {
-                self.register_actions(&service_full_name, actions)?;
+                self.register_actions(&node, &service_full_name, actions)?;
             }
             if let Some(events) = svc.events {
-                self.register_events();
+                self.register_events(&node, &service_full_name, events)?;
             }
 
             {
@@ -98,10 +100,10 @@ impl Registry {
     }
     fn register_actions(
         &mut self,
+        node: &Node,
         service_full_name: &str,
         actions: Vec<Action>,
     ) -> anyhow::Result<()> {
-        let node = self.nodes.local_node()?;
         let service = self.services.get_mut(service_full_name, Some(&node.id))?;
 
         actions.iter().for_each(|action| {
@@ -169,11 +171,21 @@ impl Registry {
         self.actions.remove(action_name, node_id);
     }
 
-    fn register_events(&mut self) {
-        todo!()
+    fn register_events(
+        &mut self,
+        node: &Node,
+        service_full_name: &str,
+        events: Vec<Event>,
+    ) -> anyhow::Result<()> {
+        let service = self.services.get_mut(service_full_name, Some(&node.id))?;
+        events.iter().for_each(|event| {
+            self.events.add(node, service, event.to_owned());
+        });
+
+        Ok(())
     }
     fn unregister_event(&mut self, node_id: &str, event_name: &str) {
-        todo!()
+        self.events.remove(event_name, node_id);
     }
 
     fn regenerate_local_raw_info(&self, inc_seq: Option<bool>) -> Value {
