@@ -7,11 +7,11 @@ use serde_json::Value;
 use super::{discoverers::PayloadInfo, Payload};
 
 #[derive(PartialEq, Eq, Clone, Debug, Serialize)]
-pub struct Node {
-    pub id: String,
+pub(crate)struct Node {
+    pub(crate)id: String,
     instance_id: Option<String>,
-    pub available: bool,
-    pub local: bool,
+    pub(crate)available: bool,
+    pub(crate)local: bool,
     #[serde(serialize_with = "duration_serialzie")]
     last_heartbeat_time: Duration,
     metadata: Value,
@@ -25,18 +25,18 @@ pub struct Node {
     hostname: Option<String>,
     udp_address: Option<IpAddr>,
     raw_info: Option<NodeRawInfo>,
-    pub cpu: u32,
+    pub(crate)cpu: u32,
     /*
     cpuseq
     */
-    pub services: Vec<String>,
-    pub seq: usize,
+    pub(crate)services: Vec<String>,
+    pub(crate)seq: usize,
     #[serde(serialize_with = "option_duration_serialzie")]
     offline_since: Option<Duration>,
 }
 
 impl Node {
-    pub fn new(id: String) -> Self {
+    pub(crate)fn new(id: String) -> Self {
         Self {
             id,
             instance_id: None,
@@ -60,20 +60,20 @@ impl Node {
             offline_since: None,
         }
     }
-    pub fn update(&mut self) {
+    pub(crate)fn update(&mut self) {
         todo!()
     }
-    pub fn update_local_info(&mut self) {
+    pub(crate)fn update_local_info(&mut self) {
         todo!()
     }
-    pub fn hearbeat(&mut self) {
+    pub(crate)fn hearbeat(&mut self) {
         if !self.available {
             self.available = true;
             self.offline_since = None;
         }
         todo!()
     }
-    pub fn disconnected(&mut self) {
+    pub(crate)fn disconnected(&mut self) {
         if self.available {
             self.seq = self.seq.saturating_add(1);
             /* update this with process uptime
@@ -83,44 +83,44 @@ impl Node {
         self.available = false;
     }
 
-    pub fn services_len(&self) -> usize {
+    pub(crate)fn services_len(&self) -> usize {
         self.services.len()
     }
-    pub fn set_local(mut self, value: bool) -> Self {
+    pub(crate)fn set_local(mut self, value: bool) -> Self {
         self.local = value;
         self
     }
-    pub fn set_ip_list(mut self, ip_list: Vec<String>) -> Self {
+    pub(crate)fn set_ip_list(mut self, ip_list: Vec<String>) -> Self {
         self.ip_list = ip_list;
         self
     }
-    pub fn set_instance_id(mut self, instance_id: String) -> Self {
+    pub(crate)fn set_instance_id(mut self, instance_id: String) -> Self {
         self.instance_id = Some(instance_id);
         self
     }
-    pub fn set_hostname(mut self, hostname: String) -> Self {
+    pub(crate)fn set_hostname(mut self, hostname: String) -> Self {
         self.hostname = Some(hostname);
         self
     }
-    pub fn set_client(mut self, client: Client) -> Self {
+    pub(crate)fn set_client(mut self, client: Client) -> Self {
         self.client = Some(client);
         self
     }
-    pub fn set_seq(mut self, seq: usize) -> Self {
+    pub(crate)fn set_seq(mut self, seq: usize) -> Self {
         self.seq = seq;
         self
     }
-    pub fn set_metadata(mut self, metadata: Value) -> Self {
+    pub(crate)fn set_metadata(mut self, metadata: Value) -> Self {
         self.metadata = metadata;
         self
     }
-    pub fn raw_info(&self)->&NodeRawInfo{
+    pub(crate)fn raw_info(&self)->&NodeRawInfo{
         &self.raw_info.as_ref().unwrap()
     }
 }
 #[derive(PartialEq, Eq, Clone, Debug, Serialize)]
 
-pub struct Client {
+pub(crate)struct Client {
     pub(crate) client_type: String,
     pub(crate) version: String,
     pub(crate) lang_version: String,
@@ -142,15 +142,15 @@ where
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct NodeRawInfo {
-    pub services: Vec<String>,
-    pub config: String,
-    pub ip_list: Vec<String>,
-    pub hostame: String,
-    pub client: Client,
-    pub seq: usize,
-    pub instance_id: String,
-    pub meta_data: String,
+pub(crate)struct NodeRawInfo {
+    pub(crate)services: Vec<String>,
+    pub(crate)config: String,
+    pub(crate)ip_list: Vec<String>,
+    pub(crate)hostame: String,
+    pub(crate)client: Client,
+    pub(crate)seq: usize,
+    pub(crate)instance_id: String,
+    pub(crate)meta_data: String,
 }
 impl From<PayloadInfo> for NodeRawInfo {
     fn from(item: PayloadInfo) -> Self {

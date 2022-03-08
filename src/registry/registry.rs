@@ -9,7 +9,7 @@ use serde_json::Value;
 use tokio::sync::mpsc::UnboundedSender;
 #[derive(Debug)]
 
-pub struct Registry {
+pub(crate)struct Registry {
     broker_sender: UnboundedSender<ServiceBrokerMessage>,
     broker: Arc<ServiceBroker>,
     pub(crate) nodes: NodeCatalog,
@@ -25,7 +25,7 @@ pub struct Registry {
     */
 }
 impl Registry {
-    pub fn new(
+    pub(crate)fn new(
         broker: Arc<ServiceBroker>,
         broker_sender: UnboundedSender<ServiceBrokerMessage>,
     ) -> Self {
@@ -64,7 +64,7 @@ impl Registry {
     fn update_metrics(&self) {
         todo!("update metrics")
     }
-    pub fn register_local_service(&mut self, svc: ServiceSpec) -> anyhow::Result<()> {
+    pub(crate)fn register_local_service(&mut self, svc: ServiceSpec) -> anyhow::Result<()> {
         if !self
             .services
             .has(&svc.full_name, Some(&self.broker.node_id))
@@ -87,7 +87,7 @@ impl Registry {
         }
         Ok(())
     }
-    pub fn register_services() {
+    pub(crate)fn register_services() {
         todo!("add remote serice support")
     }
     fn check_action_visibility(action: &Action, node: &Node) -> bool {
@@ -130,13 +130,13 @@ impl Registry {
         // let action_ep = ActionEndpoint::new(node, service, action);
         // Ok(action_ep)
     }
-    pub fn has_services(&self, full_name: &str, node_id: Option<&str>) -> bool {
+    pub(crate)fn has_services(&self, full_name: &str, node_id: Option<&str>) -> bool {
         self.services.has(full_name, node_id)
     }
-    pub fn get_action_endpoints(&self, action_name: &str) -> Option<&EndpointList<ActionEndpoint>> {
+    pub(crate)fn get_action_endpoints(&self, action_name: &str) -> Option<&EndpointList<ActionEndpoint>> {
         self.actions.get(action_name)
     }
-    pub fn get_action_endpoint_by_node_id(
+    pub(crate)fn get_action_endpoint_by_node_id(
         &self,
         action_name: &str,
         node_id: &str,
@@ -147,7 +147,7 @@ impl Registry {
         }
         None
     }
-    pub fn unregister_service(&mut self, full_name: &str, node_id: Option<&str>) {
+    pub(crate)fn unregister_service(&mut self, full_name: &str, node_id: Option<&str>) {
         let id = match node_id {
             Some(node_id) => node_id.to_string(),
             None => self.broker.node_id.clone(),
@@ -164,7 +164,7 @@ impl Registry {
             }
         }
     }
-    pub fn unregister_service_by_node_id(&mut self, node_id: &str) {
+    pub(crate)fn unregister_service_by_node_id(&mut self, node_id: &str) {
         self.services.remove_all_by_node_id(node_id);
     }
     fn unregiste_action(&mut self, node_id: &str, action_name: &str) {
@@ -192,7 +192,7 @@ impl Registry {
         todo!()
     }
 
-    pub fn get_local_node_info(&self, force: bool) -> anyhow::Result<NodeRawInfo> {
+    pub(crate)fn get_local_node_info(&self, force: bool) -> anyhow::Result<NodeRawInfo> {
         // if let None = self.nodes.local_node() {
         //     return Ok(self.regenerate_local_raw_info(None));
         // }
@@ -208,10 +208,10 @@ impl Registry {
     pub(crate) fn process_node_info(&self, node_id: &str, payload: PayloadInfo) {
         todo!()
     }
-    pub fn get_node_list(&self, only_available: bool, with_services: bool) -> Vec<&Node> {
+    pub(crate)fn get_node_list(&self, only_available: bool, with_services: bool) -> Vec<&Node> {
         self.nodes.list(only_available, with_services)
     }
-    pub fn get_services_list(&self, opts: ListOptions) -> Vec<&ServiceItem> {
+    pub(crate)fn get_services_list(&self, opts: ListOptions) -> Vec<&ServiceItem> {
         self.services.list(opts)
     }
     fn get_action_list(&self, opts: ListOptions) -> Vec<&ActionEndpoint> {

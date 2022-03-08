@@ -13,12 +13,12 @@ use super::{Client, Node};
 
 #[derive(Debug)]
 
-pub struct NodeCatalog {
+pub(crate)struct NodeCatalog {
     nodes: HashMap<String, Node>,
     local_node_id: String,
 }
 impl NodeCatalog {
-    pub fn new() -> Self {
+    pub(crate)fn new() -> Self {
         //TODO: add the create local node logic here
         Self {
             nodes: HashMap::new(),
@@ -26,7 +26,7 @@ impl NodeCatalog {
         }
     }
     ///Create a local node
-    pub fn create_local_node(
+    pub(crate)fn create_local_node(
         &mut self,
         client_version: String,
         node_id: String,
@@ -49,25 +49,25 @@ impl NodeCatalog {
         self.nodes.insert(node.id.to_string(), node.clone());
         self.local_node_id = node.id;
     }
-    pub fn add(&mut self, id: &str, node: Node) {
+    pub(crate)fn add(&mut self, id: &str, node: Node) {
         self.nodes.insert(id.to_string(), node);
     }
-    pub fn had_node(&self, id: &str) -> bool {
+    pub(crate)fn had_node(&self, id: &str) -> bool {
         self.nodes.get(id).is_some()
     }
-    pub fn get_node(&self, id: &str) -> Option<&Node> {
+    pub(crate)fn get_node(&self, id: &str) -> Option<&Node> {
         self.nodes.get(id)
     }
-    pub fn get_node_mut(&mut self, id: &str) -> Option<&mut Node> {
+    pub(crate)fn get_node_mut(&mut self, id: &str) -> Option<&mut Node> {
         self.nodes.get_mut(id)
     }
-    pub fn local_node(&self) -> anyhow::Result<&Node> {
+    pub(crate)fn local_node(&self) -> anyhow::Result<&Node> {
         match self.get_node(&self.local_node_id) {
             Some(node) => Ok(node),
             None => bail!(RegistryError::NoLocalNodeFound),
         }
     }
-    pub fn local_node_mut(&mut self) -> anyhow::Result<&mut Node> {
+    pub(crate)fn local_node_mut(&mut self) -> anyhow::Result<&mut Node> {
         let local_node_id = self.local_node_id.clone();
         match self.get_node_mut(&local_node_id) {
             Some(node) => Ok(node),
@@ -75,13 +75,13 @@ impl NodeCatalog {
         }
     }
 
-    pub fn delete(&mut self, id: &str) -> Option<Node> {
+    pub(crate)fn delete(&mut self, id: &str) -> Option<Node> {
         self.nodes.remove(id)
     }
-    pub fn count(&self) -> usize {
+    pub(crate)fn count(&self) -> usize {
         self.nodes.len()
     }
-    pub fn online_count(&self) -> usize {
+    pub(crate)fn online_count(&self) -> usize {
         let mut count: usize = 0;
         self.nodes.iter().for_each(|node_item| {
             let (_, node) = node_item;
@@ -91,11 +91,11 @@ impl NodeCatalog {
         });
         count
     }
-    pub fn process_node_info(&self) {
+    pub(crate)fn process_node_info(&self) {
         todo!()
     }
     //Returns a bool if there was a node availabel that is removed
-    pub fn disconnected(&mut self, node_id: &str)->Option<Node> {
+    pub(crate)fn disconnected(&mut self, node_id: &str)->Option<Node> {
         let node = self.get_node_mut(node_id);
         if let Some(node) = node {
             if node.available {
@@ -106,7 +106,7 @@ impl NodeCatalog {
         None
         }
 
-    pub fn list(&self, only_available: bool, with_services: bool) -> Vec<&Node> {
+    pub(crate)fn list(&self, only_available: bool, with_services: bool) -> Vec<&Node> {
         self.nodes
             .values()
             .filter(|node| {
@@ -120,7 +120,7 @@ impl NodeCatalog {
             })
             .collect()
     }
-    pub fn list_mut(&mut self, only_available: bool, with_services: bool) -> Vec<&mut Node> {
+    pub(crate)fn list_mut(&mut self, only_available: bool, with_services: bool) -> Vec<&mut Node> {
         self.nodes
             .values_mut()
             .filter(|node| {
@@ -134,10 +134,10 @@ impl NodeCatalog {
             })
             .collect()
     }
-    pub fn nodes_vec(&self) -> Vec<&Node> {
+    pub(crate)fn nodes_vec(&self) -> Vec<&Node> {
         self.nodes.values().collect()
     }
-    pub fn nodes_vec_mut(&mut self) -> Vec<&mut Node> {
+    pub(crate)fn nodes_vec_mut(&mut self) -> Vec<&mut Node> {
         self.nodes.values_mut().collect()
     }
 }

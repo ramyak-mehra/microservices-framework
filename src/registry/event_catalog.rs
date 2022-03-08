@@ -5,19 +5,19 @@ use crate::{context::EventType, utils, ServiceBroker};
 use super::*;
 
 #[derive(Debug, Clone)]
-pub struct EventCatalog {
+pub(crate)struct EventCatalog {
     events: Vec<EndpointList<EventEndpoint>>,
     broker: Arc<ServiceBroker>,
 }
 impl EventCatalog {
-    pub fn new(broker: Arc<ServiceBroker>) -> Self {
+    pub(crate)fn new(broker: Arc<ServiceBroker>) -> Self {
         Self {
             events: Vec::new(),
             broker,
         }
     }
 
-    pub fn add(&mut self, node: &Node, service: &ServiceItem, event: Event) {
+    pub(crate)fn add(&mut self, node: &Node, service: &ServiceItem, event: Event) {
         let event_name = event.name.clone();
         let group_name = match &event.group {
             Some(group_name) => group_name.clone(),
@@ -82,7 +82,7 @@ impl EventCatalog {
         });
         res
     }
- pub   fn get_groups(&self, event_name: &str) -> Vec<String> {
+ pub(crate)  fn get_groups(&self, event_name: &str) -> Vec<String> {
         let groups: Option<Vec<String>> = self
             .events
             .iter()
@@ -100,7 +100,7 @@ impl EventCatalog {
         }
     }
 
-  pub  fn get_all_endpoints(
+  pub(crate) fn get_all_endpoints(
         &self,
         event_name: &str,
         group_names: Option<&Vec<String>>,
@@ -131,7 +131,7 @@ impl EventCatalog {
         //TODO:remove duplicates
         res
     }
-    pub async fn emit_local_services(&self, ctx: Context) {
+    pub(crate)async fn emit_local_services(&self, ctx: Context) {
         let sender = ctx.node_id();
         let event_name = ctx.event_name.as_ref().unwrap();
         let mut futures = Vec::new();
@@ -182,7 +182,7 @@ impl EventCatalog {
             .iter_mut()
             .for_each(|list| list.remove_by_service(service));
     }
-    pub fn remove(&mut self, event_name: &str, node_id: &str) {
+    pub(crate)fn remove(&mut self, event_name: &str, node_id: &str) {
         self.events.iter_mut().for_each(|list| {
             if list.name == event_name {
                 list.remove_by_node_id(node_id);

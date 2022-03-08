@@ -7,7 +7,7 @@ use anyhow::bail;
 use async_nats::*;
 use async_trait::async_trait;
 use log::info;
-pub struct NatsTransporter {
+pub(crate)struct NatsTransporter {
     opts: NatsOptions,
     connected: bool,
     has_built_in_balancer: bool,

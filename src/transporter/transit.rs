@@ -36,7 +36,7 @@ struct Request {
 pub(crate) struct Transit<T: Transporter + Send + Sync> {
     broker: Arc<ServiceBroker>,
     broker_sender: mpsc::UnboundedSender<ServiceBrokerMessage>,
-    pub tx: T,
+    pub(crate)tx: T,
     opts: TransitOptions,
     node_id: String,
     instance_id: String,
@@ -110,7 +110,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
         }
     }
     ///Send DISCONNECT to remote nodes
-    pub async fn send_disconnect_packet(&self) {
+    pub(crate)async fn send_disconnect_packet(&self) {
         todo!("after publish")
     }
     async fn make_subsciptions(&self) {
@@ -245,7 +245,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
         Ok(())
     }
 
-    pub async fn response_handler(&mut self, packet: PayloadResponse) {
+    pub(crate)async fn response_handler(&mut self, packet: PayloadResponse) {
         let id = packet.id;
         let req = self.pending_requests.get_mut(&id);
         match req {
@@ -331,7 +331,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
 
     ///Send an event to a remote node.
     /// The event is balanced by transporter
-    pub async fn send_event(
+    pub(crate)async fn send_event(
         &self,
         ctx: Context,
         endpoint: Option<EventEndpoint>,
@@ -421,7 +421,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
         }
     }
 
-   pub async fn discover_nodes(&self) {
+   pub(crate)async fn discover_nodes(&self) {
         let packet = Packet::new(P::Discover, None, PayloadNull {});
         let result = self.publish(packet).await;
         if result.is_err() {
@@ -430,7 +430,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
             self.publish_error(err, FAILED_NODES_DISCOVERY, message);
         }
     }
-   pub async fn discover_node(&self, node_id: String) {
+   pub(crate)async fn discover_node(&self, node_id: String) {
         let packet = Packet::new(P::Discover, Some(node_id.clone()), PayloadNull {});
         let result = self.publish(packet).await;
         if result.is_err() {
@@ -442,7 +442,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
             self.publish_error(err, FAILED_NODES_DISCOVERY, message);
         }
     }
-    pub async fn send_node_info(&self, info: NodeRawInfo, node_id: Option<String>) {
+    pub(crate)async fn send_node_info(&self, info: NodeRawInfo, node_id: Option<String>) {
         if !self.conntected || !self.is_ready {
             return;
         }
@@ -527,7 +527,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
         Ok(())
     }
 
-    pub async fn send_heartbeat(&self, local_node_cpu: u32) {
+    pub(crate)async fn send_heartbeat(&self, local_node_cpu: u32) {
         let payload = PayloadHeartbeat {
             cpu: local_node_cpu,
             sender: self.node_id.clone(),

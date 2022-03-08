@@ -1,6 +1,6 @@
 use thiserror::Error;
 #[derive(Error, Debug)]
-pub enum RegistryError {
+pub(crate)enum RegistryError {
     #[error("No local node found")]
     NoLocalNodeFound,
     #[error("No service found")]

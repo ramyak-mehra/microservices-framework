@@ -1,13 +1,13 @@
 mod local;
 
-pub use std::sync::Arc;
+pub(crate)use std::sync::Arc;
 
 use async_trait::async_trait;
 use chrono::Duration;
 use derive_more::Display;
 use log::{info, warn};
 use serde_json::{json, Value};
-pub use tokio::sync::{mpsc, RwLock, RwLockReadGuard};
+pub(crate)use tokio::sync::{mpsc, RwLock, RwLockReadGuard};
 
 pub(crate) use crate::{
     packet::{PayloadHeartbeat, PayloadInfo},
@@ -15,7 +15,7 @@ pub(crate) use crate::{
     Registry, ServiceBroker, ServiceBrokerMessage,
 };
 
-pub use super::Node;
+pub(crate)use super::Node;
 
 #[async_trait]
 trait Discoverer<T: Transporter + Sync + Send> {

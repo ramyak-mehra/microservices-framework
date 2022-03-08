@@ -3,7 +3,7 @@ use crate::packet::{Packet, PayloadNull, PayloadResponse};
 use super::*;
 
 #[derive(Debug)]
-pub struct JSONSerializer {}
+pub(crate)struct JSONSerializer {}
 impl JSONSerializer {
     fn do_it(&self) -> impl PacketPayload {
         PayloadNull {}

@@ -1,8 +1,8 @@
 mod round_robin;
 use crate::context::Context;
 use crate::registry::EndpointTrait;
-pub use round_robin::RoundRobinStrategy;
-pub trait Strategy {
+pub(crate)use round_robin::RoundRobinStrategy;
+pub(crate)trait Strategy {
     // fn new(registry: Arc<Registry>, broker: Arc<ServiceBroker>, opts: StrategyOpts) -> Self;
     fn select<'a, E: EndpointTrait>(
         &mut self,
@@ -11,4 +11,4 @@ pub trait Strategy {
     ) -> Option<&'a E>;
 }
 
-pub struct StrategyOpts {}
+pub(crate)struct StrategyOpts {}

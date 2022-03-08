@@ -51,7 +51,7 @@ impl Default for RetryPolicy {
 }
 
 #[derive(Debug)]
-pub struct BrokerOptions {
+pub(crate)struct BrokerOptions {
     transporter: String,
     heartbeat_frequency: Duration,
     heartbeat_timeout: Duration,
@@ -64,15 +64,15 @@ pub struct BrokerOptions {
     request_timeout: Duration,
     mcall_timeout: Duration,
     retry_policy: RetryPolicy,
-    pub max_call_level: usize,
-    pub metrics: bool,
+    pub(crate)max_call_level: usize,
+    pub(crate)metrics: bool,
     metrics_rate: f32,
     wait_for_neighbours_interval: Duration,
     dont_wait_for_neighbours: bool,
-    pub strategy_factory: RwLock<RoundRobinStrategy>,
-    pub serializer: JSONSerializer,
-    pub metadata: Value,
-    pub disable_balancer: bool, /*
+    pub(crate)strategy_factory: RwLock<RoundRobinStrategy>,
+    pub(crate)serializer: JSONSerializer,
+    pub(crate)metadata: Value,
+    pub(crate)disable_balancer: bool, /*
 
                             discover_node_id : fn()->String,
                             metrics bool
@@ -114,18 +114,18 @@ impl Default for BrokerOptions {
 
 #[derive(Debug)]
 
-pub struct ServiceBroker {
+pub(crate)struct ServiceBroker {
     reciever: UnboundedReceiver<ServiceBrokerMessage>,
     pub(crate) sender: UnboundedSender<ServiceBrokerMessage>,
     pub(crate) started: bool,
     pub(crate) namespace: Option<String>,
     metdata: Payload,
-    pub node_id: String,
-    pub instance: String,
+    pub(crate)node_id: String,
+    pub(crate)instance: String,
     services: Vec<Service>,
-    pub transit: Option<Transit>,
-    pub logger: Arc<Logger>,
-    pub options: BrokerOptions,
+    pub(crate)transit: Option<Transit>,
+    pub(crate)logger: Arc<Logger>,
+    pub(crate)options: BrokerOptions,
 
     /*
     local bus
@@ -144,14 +144,14 @@ pub struct ServiceBroker {
 }
 #[derive(Debug)]
 
-pub struct Transit {}
+pub(crate)struct Transit {}
 
 impl ServiceBroker {
     fn start(&mut self) {
         let time = Utc::now();
         self.started = true;
     }
-    pub fn serializer(&self) -> &JSONSerializer {
+    pub(crate)fn serializer(&self) -> &JSONSerializer {
         &self.options.serializer
     }
     fn stop(&mut self) {
@@ -344,7 +344,7 @@ impl ServiceBroker {
         }
     }
 
-    pub fn get_local_action_endpoint(
+    pub(crate)fn get_local_action_endpoint(
         &self,
         action_name: &str,
         ctx: &Context,
@@ -465,7 +465,7 @@ impl ServiceBroker {
         self.emit_local_services(ctx, payload).await;
     }
 
-    pub fn get_local_node_info(&self) -> anyhow::Result<NodeRawInfo> {
+    pub(crate)fn get_local_node_info(&self) -> anyhow::Result<NodeRawInfo> {
         self.registry.as_ref().unwrap().get_local_node_info(false)
     }
 
@@ -497,7 +497,7 @@ impl ServiceBroker {
         //TODO: add payload to ctx itself.
         registry.events.emit_local_services(ctx).await;
     }
-   pub fn get_local_node_services(&self)->Vec<&ServiceItem>{
+   pub(crate)fn get_local_node_services(&self)->Vec<&ServiceItem>{
         self.registry.as_ref().unwrap().services.get_local_node_service()
     }
     fn get_cpu_usage() {
@@ -510,7 +510,7 @@ impl ServiceBroker {
 }
 
 #[derive(Debug)]
-pub enum ServiceBrokerMessage {
+pub(crate)enum ServiceBrokerMessage {
     AddLocalService(Service),
     RegisterLocalService(ServiceSpec),
     WaitForServices {
@@ -613,18 +613,18 @@ impl PartialEq for ServiceBrokerMessage {
 }
 
 #[derive(Debug)]
-pub struct HandlerResult {
+pub(crate)struct HandlerResult {
     // pub(crate) data: u32,
     pub(crate) data: Box<dyn Any + Send + Sync>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CallOptions {
+pub(crate)struct CallOptions {
     meta: Payload,
     node_id: Option<String>,
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EventOptions {
+pub(crate)struct EventOptions {
     groups: Vec<String>,
 }
 

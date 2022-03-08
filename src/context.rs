@@ -18,36 +18,36 @@ use crate::{
 };
 #[derive(Debug, Clone)]
 
-pub struct ContextOptions {
-    pub timeout: Option<i64>,
-    pub retries: Option<usize>,
+pub(crate)struct ContextOptions {
+    pub(crate)timeout: Option<i64>,
+    pub(crate)retries: Option<usize>,
 }
 
 #[derive(Debug , Clone)]
-pub struct Context {
-    pub id: String,
-    pub request_id: Option<String>,
+pub(crate)struct Context {
+    pub(crate)id: String,
+    pub(crate)request_id: Option<String>,
     broker_sender: UnboundedSender<ServiceBrokerMessage>,
     action: Option<String>,
-    pub event: Option<String>,
-    pub event_name: Option<String>,
-    pub parent_id: Option<String>,
-    pub event_groups: Option<Vec<String>>,
-    pub event_type: EventType,
-    pub params: Option<Payload>,
-    pub meta: Payload,
-    pub caller: Option<String>,
+    pub(crate)event: Option<String>,
+    pub(crate)event_name: Option<String>,
+    pub(crate)parent_id: Option<String>,
+    pub(crate)event_groups: Option<Vec<String>>,
+    pub(crate)event_type: EventType,
+    pub(crate)params: Option<Payload>,
+    pub(crate)meta: Payload,
+    pub(crate)caller: Option<String>,
     locals: Option<Payload>,
-    pub node_id: Option<String>,
+    pub(crate)node_id: Option<String>,
 
-    pub tracing: bool,
-    pub level: usize,
+    pub(crate)tracing: bool,
+    pub(crate)level: usize,
 
     service: String,
 
-    pub options: ContextOptions,
+    pub(crate)options: ContextOptions,
     parent_ctx: Option<Box<Context>>,
-    pub need_ack: bool,
+    pub(crate)need_ack: bool,
     /*
     tracing
     span
@@ -62,14 +62,14 @@ pub struct Context {
     cached_result: bool,
 }
 #[derive(Debug , Clone)]
-pub enum EventType {
+pub(crate)enum EventType {
     Emit,
     Broadcast,
     BroadcastLocal
 }
 
 impl Context {
-    pub fn new(broker: &ServiceBroker, service: String) -> Self {
+    pub(crate)fn new(broker: &ServiceBroker, service: String) -> Self {
         //TODO:handle tracing
         let id = utils::generate_uuid();
         let request_id = id.clone();
@@ -103,7 +103,7 @@ impl Context {
         }
     }
 
-    pub fn child_action_context(
+    pub(crate)fn child_action_context(
         &self,
         broker: &ServiceBroker,
         params: Payload,
@@ -154,14 +154,14 @@ impl Context {
         }
     }
 
-    pub fn action(&self) -> &str {
+    pub(crate)fn action(&self) -> &str {
         self.action.as_ref().unwrap()
     }
-    pub fn node_id(&self) -> &String {
+    pub(crate)fn node_id(&self) -> &String {
         self.node_id.as_ref().unwrap()
     }
 
-    pub fn set_endpoint<E: EndpointTrait>(
+    pub(crate)fn set_endpoint<E: EndpointTrait>(
         &mut self,
         endpoint: &E,
         action: Option<String>,
@@ -257,27 +257,27 @@ impl Context {
     }
 }
 #[derive(Debug)]
-pub struct ActionContext {
-    pub id: String,
-    pub request_id: String,
+pub(crate)struct ActionContext {
+    pub(crate)id: String,
+    pub(crate)request_id: String,
     broker_sender: UnboundedSender<ServiceBrokerMessage>,
     action: String,
-    pub parent_id: Option<String>,
-    pub params: Option<Payload>,
-    pub meta: Payload,
-    pub caller: String,
+    pub(crate)parent_id: Option<String>,
+    pub(crate)params: Option<Payload>,
+    pub(crate)meta: Payload,
+    pub(crate)caller: String,
 
     locals: Option<Payload>,
-    pub node_id: String,
+    pub(crate)node_id: String,
 
-    pub tracing: bool,
-    pub level: usize,
+    pub(crate)tracing: bool,
+    pub(crate)level: usize,
 
     service: String,
 
-    pub options: ContextOptions,
+    pub(crate)options: ContextOptions,
     parent_ctx: Option<Box<Context>>,
-    pub need_ack: bool,
+    pub(crate)need_ack: bool,
     /*
     tracing
     span

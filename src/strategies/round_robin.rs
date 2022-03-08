@@ -2,12 +2,12 @@ use super::*;
 use std::sync::Arc;
 
 #[derive(Debug)]
-pub struct RoundRobinStrategy {
+pub(crate)struct RoundRobinStrategy {
     counter: usize,
 }
 
 impl RoundRobinStrategy {
-    pub fn new() -> Self {
+    pub(crate)fn new() -> Self {
         RoundRobinStrategy { counter: 0 }
     }
 }

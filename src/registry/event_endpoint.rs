@@ -1,9 +1,9 @@
 use super::*;
 
 #[derive(PartialEq , Eq , Clone,Debug)]
-pub struct EventEndpoint {
+pub(crate)struct EventEndpoint {
  endpoint: Endpoint,
-  pub  event: Event,
+  pub(crate) event: Event,
 }
 
 impl EndpointTrait for EventEndpoint {

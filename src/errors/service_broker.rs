@@ -1,6 +1,6 @@
 use thiserror::Error;
 #[derive(Error, Debug)]
-pub enum ServiceBrokerError {
+pub(crate)enum ServiceBrokerError {
     #[error("Service {action_name:?} is not registered locally.")]
     ServiceNotFound {
         action_name: String,

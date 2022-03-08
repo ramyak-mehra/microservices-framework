@@ -11,7 +11,7 @@ use std::{any, fmt::Display};
 
 #[derive(Debug, Clone, Serialize)]
 #[repr(usize)]
-pub enum DataType {
+pub(crate)enum DataType {
     Undefined = 0,
     Null = 1,
     Json = 2,
@@ -19,7 +19,7 @@ pub enum DataType {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub enum PacketType {
+pub(crate)enum PacketType {
     Unknown,
     Event,
     Request,

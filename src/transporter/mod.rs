@@ -1,5 +1,5 @@
-pub mod nats;
-pub mod transit;
+pub(crate)mod nats;
+pub(crate)mod transit;
 use std::sync::Arc;
 
 pub(crate) use crate::{errors::ServiceBrokerError, packet::*};
