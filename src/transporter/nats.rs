@@ -5,8 +5,9 @@ use crate::ServiceBroker;
 use super::{balanced_event_regex_replace, PacketType, Transporter};
 use anyhow::bail;
 use async_nats::*;
+use async_trait::async_trait;
 use log::info;
-struct NatsTransporter {
+pub struct NatsTransporter {
     opts: NatsOptions,
     connected: bool,
     has_built_in_balancer: bool,
@@ -73,7 +74,7 @@ impl NatsTransporter {
 
         tokio::spawn(async move {
             while let Some(msg) = sub.next().await {
-                self.receive(PacketType::Request, msg.data);
+                self.receive(PacketType::Request, Some(msg.data));
                 // todo!("HANDLE SUBS MESSGES IN BALANCED REQ")
             }
         });
@@ -132,7 +133,7 @@ impl NatsTransporter {
         }
     }
 }
-
+#[async_trait]
 impl Transporter for NatsTransporter {
     fn broker(&self) -> &Arc<crate::ServiceBroker> {
         &self.broker
@@ -146,115 +147,53 @@ impl Transporter for NatsTransporter {
         &self.prefix
     }
 
-    fn connect<'life0, 'async_trait>(
-        &'life0 self,
-    ) -> core::pin::Pin<
-        Box<dyn core::future::Future<Output = ()> + core::marker::Send + 'async_trait>,
-    >
-    where
-        'life0: 'async_trait,
-        Self: 'async_trait,
-    {
+    fn has_built_in_balancer(&self) -> bool {
         todo!()
     }
 
-    fn on_connected(&mut self, was_reconnect: bool) {
+
+    fn connect< 'life0, 'async_trait>(& 'life0 self) ->  core::pin::Pin<Box<dyn core::future::Future<Output = ()> + core::marker::Send+ 'async_trait> >where 'life0: 'async_trait,Self: 'async_trait {
         todo!()
     }
 
-    fn disconnect<'life0, 'async_trait>(
-        &'life0 self,
-    ) -> core::pin::Pin<
-        Box<dyn core::future::Future<Output = ()> + core::marker::Send + 'async_trait>,
-    >
-    where
-        'life0: 'async_trait,
-        Self: 'async_trait,
-    {
+
+    fn on_connected(&mut self,was_reconnect:bool) {
         todo!()
     }
 
-    fn incoming_message<'life0, 'async_trait>(
-        &'life0 self,
-    ) -> core::pin::Pin<
-        Box<dyn core::future::Future<Output = ()> + core::marker::Send + 'async_trait>,
-    >
-    where
-        'life0: 'async_trait,
-        Self: 'async_trait,
-    {
+
+    fn disconnect< 'life0, 'async_trait>(& 'life0 self) ->  core::pin::Pin<Box<dyn core::future::Future<Output = ()> + core::marker::Send+ 'async_trait> >where 'life0: 'async_trait,Self: 'async_trait {
         todo!()
     }
 
-    fn subscibe<'life0, 'async_trait>(
-        &'life0 self,
-        topic: super::Topic,
-    ) -> core::pin::Pin<
-        Box<
-            dyn core::future::Future<Output = anyhow::Result<()>>
-                + core::marker::Send
-                + 'async_trait,
-        >,
-    >
-    where
-        'life0: 'async_trait,
-        Self: 'async_trait,
-    {
+
+ 
+
+    fn subscibe< 'life0, 'async_trait>(& 'life0 self,topic:super::Topic) ->  core::pin::Pin<Box<dyn core::future::Future<Output = anyhow::Result<()> > + core::marker::Send+ 'async_trait> >where 'life0: 'async_trait,Self: 'async_trait {
         todo!()
     }
 
-    fn subscibe_balanced_request<'life0, 'async_trait>(
-        &'life0 self,
-    ) -> core::pin::Pin<
-        Box<
-            dyn core::future::Future<Output = anyhow::Result<()>>
-                + core::marker::Send
-                + 'async_trait,
-        >,
-    >
-    where
-        'life0: 'async_trait,
-        Self: 'async_trait,
-    {
+
+    fn subscibe_balanced_event< 'life0, 'async_trait>(& 'life0 self) ->  core::pin::Pin<Box<dyn core::future::Future<Output = anyhow::Result<()> > + core::marker::Send+ 'async_trait> >where 'life0: 'async_trait,Self: 'async_trait {
         todo!()
     }
 
-    fn subscibe_balanced_event<'life0, 'async_trait>(
-        &'life0 self,
-    ) -> core::pin::Pin<
-        Box<
-            dyn core::future::Future<Output = anyhow::Result<()>>
-                + core::marker::Send
-                + 'async_trait,
-        >,
-    >
-    where
-        'life0: 'async_trait,
-        Self: 'async_trait,
-    {
+
+    fn unsubscribe_from_balanced_commands< 'life0, 'async_trait>(& 'life0 self) ->  core::pin::Pin<Box<dyn core::future::Future<Output = ()> + core::marker::Send+ 'async_trait> >where 'life0: 'async_trait,Self: 'async_trait {
         todo!()
     }
 
-    fn send<'life0, 'async_trait>(
-        &'life0 self,
-        topic: String,
-        data: String,
-        meta: Option<super::TransporterMeta>,
-    ) -> core::pin::Pin<
-        Box<
-            dyn core::future::Future<Output = anyhow::Result<()>>
-                + core::marker::Send
-                + 'async_trait,
-        >,
-    >
-    where
-        'life0: 'async_trait,
-        Self: 'async_trait,
-    {
+    fn send< 'life0, 'async_trait>(& 'life0 self,topic:String,data:String,meta:Option<super::TransporterMeta> ,) ->  core::pin::Pin<Box<dyn core::future::Future<Output = anyhow::Result<()> > + core::marker::Send+ 'async_trait> >where 'life0: 'async_trait,Self: 'async_trait {
         todo!()
     }
+
+    fn subscibe_balanced_request< 'life0, 'life1, 'async_trait>(& 'life0 self,action: & 'life1 str) ->  core::pin::Pin<Box<dyn core::future::Future<Output = anyhow::Result<()> > + core::marker::Send+ 'async_trait> >where 'life0: 'async_trait, 'life1: 'async_trait,Self: 'async_trait {
+        todo!()
+    }
+
+
+
 }
-
 struct NatsOptions {
     preserve_buffers: bool,
     max_reconnect_attempts: i16,

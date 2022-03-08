@@ -8,7 +8,7 @@ use anyhow::bail;
 use async_trait::async_trait;
 use lazy_static::lazy_static;
 use regex::Regex;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 pub(crate) use transit::Transit;
 type PT = PacketType;
 fn balanced_event_regex_replace(topic: &str) -> String {
@@ -23,6 +23,7 @@ pub(crate) trait Transporter {
     fn broker(&self) -> &Arc<ServiceBroker>;
     fn connected(&self) -> bool;
     fn prefix(&self) -> &String;
+    fn has_built_in_balancer(&self) -> bool;
     async fn connect(&self);
     fn on_connected(&mut self, was_reconnect: bool);
     async fn disconnect(&self);
@@ -34,16 +35,42 @@ pub(crate) trait Transporter {
         Ok(())
     }
 
-    async fn incoming_message(&self);
+    async fn incoming_message(&self, cmd: PacketType, msg: Option<Vec<u8>>) {
+        match msg {
+            None => return,
+            Some(msg) => {
+                todo!()
+                // let packet = self.deserialize(cmd , msg);
+            }
+        }
+    }
     //Received data. It's a wrapper for middlewares.
-    async fn receive(&self, cmd: PacketType, data: Vec<u8>) {
-        self.incoming_message().await;
+    async fn receive(&self, cmd: PacketType, data: Option<Vec<u8>>) {
+        self.incoming_message(cmd, data).await;
     }
 
     async fn subscibe(&self, topic: Topic) -> anyhow::Result<()>;
-    async fn subscibe_balanced_request(&self) -> anyhow::Result<()>;
+    async fn subscibe_balanced_request(&self, action: &str) -> anyhow::Result<()>;
     async fn subscibe_balanced_event(&self) -> anyhow::Result<()>;
+    async fn unsubscribe_from_balanced_commands(&self);
 
+    async fn make_balanced_subscriptions(&self) -> anyhow::Result<()> {
+        if !self.has_built_in_balancer() {
+            return Ok(());
+        }
+        self.unsubscribe_from_balanced_commands().await;
+        let services = self.broker().get_local_node_services();
+        let mut futures = Vec::new();
+        services.iter().for_each(|svc| {
+            let svc = *svc;
+            svc.actions.iter().for_each(|item| {
+                futures.push(self.subscibe_balanced_request(item.0));
+            });
+            svc.events.iter().for_each(|item| {})
+        });
+        todo!();
+        Ok(())
+    }
     async fn pre_publish<P: PacketPayload + Send + Copy + Serialize>(
         &self,
         packet: Packet<P>,
@@ -79,7 +106,7 @@ pub(crate) trait Transporter {
                 return Ok(());
             }
         } else if packet.tipe == PT::Request && packet.target.is_none() {
-            let payload = payload.request_paylaod()?;
+            let payload = payload.request_paylaod();
             let request_packet = packet.from_payload::<PayloadRequest>(payload);
             let _ = self.publish_balanced_request(request_packet).await?;
             return Ok(());
@@ -145,6 +172,12 @@ pub(crate) trait Transporter {
         //TODO: handle the error
         let data = serializer.serialize(packet).unwrap();
         data
+    }
+    fn deserialize<'a, P>(&self, tipe: PacketType, buf: Vec<u8>) -> Packet<P>
+    where
+        P:  PacketPayload + Send + Deserialize<'a>,
+    {
+       todo!() 
     }
 }
 
