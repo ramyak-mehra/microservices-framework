@@ -1,11 +1,14 @@
-use serde::{Deserialize, Serialize};
-
-use crate::packet::{PacketPayload, PacketType};
 pub mod json;
+
+
+pub use anyhow::bail;
+pub use serde::{Deserialize, Serialize};
+
+use crate::packet::Packet;
+pub(crate) use crate::packet::{PacketPayload, PacketType};
 
 pub trait BaseSerializer {
     type Data;
-    fn serialize<S: Serialize>(&self,data: S) -> anyhow::Result<Self::Data>;
-    fn deserialize<'a, D: Deserialize<'a>>(data: D) -> Self::Data;
- 
+    fn serialize<S: Serialize>(&self, data: S) -> anyhow::Result<Self::Data>;
+    fn deserialize(&self,data: &[u8], tipe: PacketType);
 }

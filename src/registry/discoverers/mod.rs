@@ -1,34 +1,39 @@
-use std::sync::Arc;
+mod local;
+
+pub use std::sync::Arc;
 
 use async_trait::async_trait;
 use chrono::Duration;
 use derive_more::Display;
 use log::{info, warn};
 use serde_json::{json, Value};
-use tokio::sync::{mpsc, RwLock, RwLockReadGuard};
+pub use tokio::sync::{mpsc, RwLock, RwLockReadGuard};
 
-use crate::{
-    errors::TransitError,
+pub(crate) use crate::{
     packet::{PayloadHeartbeat, PayloadInfo},
-    transporter::{transit::TransitMessage, Transit, Transporter},
+    transporter::{Transit , Transporter},
     Registry, ServiceBroker, ServiceBrokerMessage,
 };
 
-use super::Node;
+pub use super::Node;
 
 #[async_trait]
-trait Discoverer {
-    fn transit_sender(&self) -> mpsc::UnboundedSender<TransitMessage>;
+trait Discoverer<T: Transporter + Sync + Send> {
+    fn registry(&self) -> &Arc<RwLock<Registry>>;
 
-    fn registry(&self) -> Arc<RwLock<Registry>>;
+    fn broker_sender(&self) -> &mpsc::UnboundedSender<ServiceBrokerMessage>;
 
-    fn broker_sender(&self) -> mpsc::UnboundedSender<ServiceBrokerMessage>;
-
-    fn broker(&self) -> Arc<ServiceBroker>;
+    fn broker(&self) -> &Arc<ServiceBroker>;
 
     fn opts(&self) -> &DiscovererOpts;
 
-    fn local_node(&self) -> &Node;
+    fn transit(&self) -> &Transit<T>;
+
+    async fn local_node_cpu(&self) -> u32 {
+        let registry = self.registry();
+        let registry = registry.read().await;
+        registry.nodes.local_node().unwrap().cpu.clone()
+    }
     async fn stop(&self) {
         self.stop_heartbeat_timers().await;
     }
@@ -63,41 +68,28 @@ trait Discoverer {
         registry.process_node_info(node_id, payload);
     }
 
-    async fn send_heartbeat(&self) -> anyhow::Result<()> {
-        let cpu = self.local_node().cpu.clone();
-        let _ = self
-            .transit_sender()
-            .send(TransitMessage::SendHeartBeat(cpu))?;
-
-        Ok(())
+    async fn send_heartbeat(&self) {
+        let cpu = self.local_node_cpu().await;
+        self.transit().send_heartbeat(cpu).await;
     }
 
     ///Discover a new or old node by node_id.
-    fn discover_node(&self, node_id: &str);
+    async fn discover_node(&self, node_id: &str);
 
     /// Discover all nodes (after connected)
-    fn disocer_all_nodes(&self);
+    async fn discover_all_nodes(&self);
 
     ///Called whent the local node is ready(transporter connected)
-    fn local_node_ready(&self) {
+    async fn local_node_ready(&self, node_id: Option<String>) {
         // Local node has started all local services. We send a new INFO packet
         // which contains the local services because we are ready to accept incoming requests.
-        self.send_local_node_info();
+        self.send_local_node_info(node_id).await;
     }
 
-    fn send_local_node_info(&self);
+    async fn send_local_node_info(&self, node_id: Option<String>);
 
-    fn local_node_disconnected(&self) -> anyhow::Result<()> {
-        let _ = self
-            .transit_sender()
-            .send(TransitMessage::SendDisconnectPacket)
-            .map_err(|err| {
-                return TransitError::SendError(
-                    TransitMessage::SendDisconnectPacket,
-                    err.to_string(),
-                );
-            })?;
-        Ok(())
+    async fn local_node_disconnected(&self) {
+        self.transit().send_disconnect_packet().await;
     }
 
     fn remote_node_disconnected(&self, node_id: &str, is_unexpected: bool) {
@@ -133,4 +125,6 @@ enum NodeEvents {
 struct DiscovererOpts {
     disable_offline_node_removing: bool,
     clean_offline_nodes_timeout: Duration,
+    heartbeat_interval: Duration,
+    heartbeat_timout: Duration,
 }
