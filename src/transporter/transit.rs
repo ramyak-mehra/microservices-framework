@@ -236,7 +236,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
 
         let endpoint = self
             .broker
-            .get_local_action_endpoint(&payload.action, &ctx)?;
+            .get_local_action_endpoint(&payload.action, &ctx).await?;
         let endpoint = endpoint.clone();
         ctx.set_endpoint(&endpoint, Some(action_name), None);
         let params = payload.params;

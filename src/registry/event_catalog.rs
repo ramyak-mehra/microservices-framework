@@ -1,19 +1,20 @@
 use std::future::Future;
 
-use crate::{context::EventType, utils, ServiceBroker};
+use crate::{context::EventType, utils, ServiceBroker, broker::BrokerOptions};
 
 use super::*;
 
 #[derive(Debug, Clone)]
 pub(crate)struct EventCatalog {
     events: Vec<EndpointList<EventEndpoint>>,
-    broker: Arc<ServiceBroker>,
+    broker_options:Arc<BrokerOptions>,
 }
 impl EventCatalog {
-    pub(crate)fn new(broker: Arc<ServiceBroker>) -> Self {
+    pub(crate)fn new(broker_options:Arc<BrokerOptions>) -> Self {
         Self {
             events: Vec::new(),
-            broker,
+            broker_options
+          
         }
     }
 
@@ -63,7 +64,7 @@ impl EventCatalog {
                 return;
             }
             let mut execute = || {
-                let ep = list.next_local(None, &self.broker.options.strategy_factory);
+                let ep = list.next_local(None, &self.broker_options.strategy_factory);
                 if let Some(ep) = ep {
                     if ep.is_available() {
                         res.push((ep, &list.group));
@@ -131,7 +132,7 @@ impl EventCatalog {
         //TODO:remove duplicates
         res
     }
-    pub(crate)async fn emit_local_services(&self, ctx: Context) {
+    pub(crate)async fn emit_local_services(&self, ctx: Context ,) {
         let sender = ctx.node_id();
         let event_name = ctx.event_name.as_ref().unwrap();
         let mut futures = Vec::new();
@@ -151,7 +152,7 @@ impl EventCatalog {
                     });
                 }
                 EventType::Emit => {
-                    let ep = list.next_local(Some(&ctx), &self.broker.options.strategy_factory);
+                    let ep = list.next_local(Some(&ctx), &self.broker_options.strategy_factory);
                     if let Some(ep) = ep {
                         let mut new_ctx = ctx.clone();
                         new_ctx.node_id = Some(sender.to_string());

@@ -1,16 +1,21 @@
+use anyhow::{bail, Result};
+use log::{debug, info, warn};
+use serde::{Deserialize, Serialize};
 use std::{
     any::Any,
     collections::HashMap,
     sync::{mpsc::Receiver, Arc},
 };
-use anyhow::{bail, Result};
-use log::{debug, info, warn};
-use serde::{Deserialize, Serialize};
 
 use crate::{
     context::{Context, EventType},
     errors::ServiceBrokerError,
-    registry::{self, endpoint_list, node::{self, NodeRawInfo}, ActionEndpoint, EndpointTrait, EventEndpoint, Payload, service_item::ServiceItem},
+    registry::{
+        self, endpoint_list,
+        node::{self, NodeRawInfo},
+        service_item::ServiceItem,
+        ActionEndpoint, EndpointTrait, EventEndpoint, Payload,
+    },
     serializers::{json::JSONSerializer, BaseSerializer},
     strategies::{RoundRobinStrategy, Strategy},
     utils,
@@ -51,11 +56,11 @@ impl Default for RetryPolicy {
 }
 
 #[derive(Debug)]
-pub(crate)struct BrokerOptions {
+pub(crate) struct BrokerOptions {
     transporter: String,
     heartbeat_frequency: Duration,
     heartbeat_timeout: Duration,
-    heartbeat_interval:Duration,
+    heartbeat_interval: Duration,
     offline_check_frequency: Duration,
     offline_timeout: Duration,
     neighbours_checkout_timeout: Duration,
@@ -64,24 +69,24 @@ pub(crate)struct BrokerOptions {
     request_timeout: Duration,
     mcall_timeout: Duration,
     retry_policy: RetryPolicy,
-    pub(crate)max_call_level: usize,
-    pub(crate)metrics: bool,
+    pub(crate) max_call_level: usize,
+    pub(crate) metrics: bool,
     metrics_rate: f32,
     wait_for_neighbours_interval: Duration,
     dont_wait_for_neighbours: bool,
-    pub(crate)strategy_factory: RwLock<RoundRobinStrategy>,
-    pub(crate)serializer: JSONSerializer,
-    pub(crate)metadata: Value,
-    pub(crate)disable_balancer: bool, /*
+    pub(crate) strategy_factory: RwLock<RoundRobinStrategy>,
+    pub(crate) serializer: JSONSerializer,
+    pub(crate) metadata: Value,
+    pub(crate) disable_balancer: bool, /*
 
-                            discover_node_id : fn()->String,
-                            metrics bool
-                            metric
-                            middleware
-                            loglevel
-                            logformat
-                            transporter factory
-                            */
+                                       discover_node_id : fn()->String,
+                                       metrics bool
+                                       metric
+                                       middleware
+                                       loglevel
+                                       logformat
+                                       transporter factory
+                                       */
 }
 
 impl Default for BrokerOptions {
@@ -90,7 +95,7 @@ impl Default for BrokerOptions {
             transporter: "TCP".to_string(),
             heartbeat_frequency: Duration::seconds(5),
             heartbeat_timeout: Duration::seconds(30),
-            heartbeat_interval : Duration::seconds(10),
+            heartbeat_interval: Duration::seconds(10),
             offline_check_frequency: Duration::seconds(20),
             offline_timeout: Duration::minutes(10),
             dont_wait_for_neighbours: true,
@@ -114,18 +119,18 @@ impl Default for BrokerOptions {
 
 #[derive(Debug)]
 
-pub(crate)struct ServiceBroker {
+pub(crate) struct ServiceBroker {
     reciever: UnboundedReceiver<ServiceBrokerMessage>,
     pub(crate) sender: UnboundedSender<ServiceBrokerMessage>,
     pub(crate) started: bool,
     pub(crate) namespace: Option<String>,
     metdata: Payload,
-    pub(crate)node_id: String,
-    pub(crate)instance: String,
+    pub(crate) node_id: String,
+    pub(crate) instance: String,
     services: Vec<Service>,
-    pub(crate)transit: Option<Transit>,
-    pub(crate)logger: Arc<Logger>,
-    pub(crate)options: BrokerOptions,
+    pub(crate) transit: Option<Transit>,
+    pub(crate) logger: Arc<Logger>,
+    pub(crate) options: Arc<BrokerOptions>,
 
     /*
     local bus
@@ -140,18 +145,18 @@ pub(crate)struct ServiceBroker {
     tracer
     transporter
     */
-    registry: Option<Registry>,
+    registry: Arc<RwLock<Registry>>,
 }
 #[derive(Debug)]
 
-pub(crate)struct Transit {}
+pub(crate) struct Transit {}
 
 impl ServiceBroker {
     fn start(&mut self) {
         let time = Utc::now();
         self.started = true;
     }
-    pub(crate)fn serializer(&self) -> &JSONSerializer {
+    pub(crate) fn serializer(&self) -> &JSONSerializer {
         &self.options.serializer
     }
     fn stop(&mut self) {
@@ -161,11 +166,9 @@ impl ServiceBroker {
     fn add_local_service(&mut self, service: Service) {
         self.services.push(service);
     }
-    fn register_local_service(&mut self, service: ServiceSpec) -> anyhow::Result<()> {
-        match &mut self.registry {
-            Some(registry) => registry.register_local_service(service),
-            None => todo!(),
-        }
+    async fn register_local_service(&self, service: ServiceSpec) {
+        let mut registry = self.registry.write().await;
+        registry.register_local_service(service);
     }
 
     async fn destroy_service(&mut self, name: &str, version: &str) -> Result<()> {
@@ -188,9 +191,10 @@ impl ServiceBroker {
         {
             self.services.remove(service_index);
         }
-        match &mut self.registry {
-            Some(registry) => registry.unregister_service(&full_name, Some(&self.node_id)),
-            None => todo!(),
+        {
+            let mut registry = self.registry.write().await;
+
+            registry.unregister_service(&full_name, Some(&self.node_id));
         }
 
         self.services_changed(true);
@@ -211,15 +215,14 @@ impl ServiceBroker {
         })
     }
 
-    fn wait_for_services(&self, service_names: Vec<String>, timeout: i64, interval: i64) {
+    async fn wait_for_services(&self, service_names: Vec<String>, timeout: i64, interval: i64) {
         info!("Waiting for service(s) {:?}", service_names);
         let start_time = Local::now();
-        let check = async {
+        let check = {
             let service_statuses = service_names.iter().map(|service_name| {
                 let status = self
                     .registry
-                    .as_ref()
-                    .unwrap()
+                    .blocking_read()
                     .has_services(service_name, None);
                 return ServiceStatus {
                     name: service_name,
@@ -265,7 +268,9 @@ impl ServiceBroker {
     ) -> anyhow::Result<()> {
         let ctx = Context::new(&self, "test_service".to_string());
         let ctx = ctx.child_action_context(&self, params.clone(), Some(opts.clone()), action_name);
-        let endpoint = self.find_next_action_endpoint(action_name, &opts, &ctx)?;
+        let endpoint = self
+            .find_next_action_endpoint(action_name, &opts, &ctx)
+            .await?;
         let endpoint = endpoint.clone();
         if endpoint.is_local() {
             debug!(
@@ -288,20 +293,20 @@ impl ServiceBroker {
         Ok(())
     }
 
-    fn find_next_action_endpoint(
+    async fn find_next_action_endpoint(
         &self,
         action_name: &str,
         opts: &CallOptions,
         ctx: &Context,
-    ) -> anyhow::Result<&ActionEndpoint> {
+    ) -> anyhow::Result<ActionEndpoint> {
         if let Some(node_id) = &opts.node_id {
-            let ep = self
-                .registry
-                .as_ref()
-                .unwrap()
-                .get_action_endpoint_by_node_id(action_name, node_id);
+            let registry = self.registry.read().await;
+            let ep = registry.get_action_endpoint_by_node_id(action_name, node_id);
             match ep {
-                Some(ep) => Ok(ep),
+                Some(ep) => {
+                    let ep = ep.to_owned();
+                    return Ok(ep);
+                }
                 None => {
                     warn!("Service {} is not found on {} node.", action_name, node_id);
 
@@ -313,16 +318,18 @@ impl ServiceBroker {
             }
         } else {
             //Get endpoint list by action name.
-            let ep_list = self
-                .registry
-                .as_ref()
-                .unwrap()
-                .get_action_endpoints(action_name);
+            let registry = self.registry.read().await;
+
+            let ep_list = registry.get_action_endpoints(action_name);
             match ep_list {
                 Some(ep_list) => {
                     let ep = ep_list.next(Some(ctx), &self.options.strategy_factory);
                     match ep {
-                        Some(ep) => Ok(ep),
+                        Some(ep) => {
+                            let ep = ep.to_owned();
+
+                            return Ok(ep);
+                        }
                         None => {
                             warn!("Service {} is not available.", action_name);
                             bail!(ServiceBrokerError::ServiceNotAvailable {
@@ -344,17 +351,14 @@ impl ServiceBroker {
         }
     }
 
-    pub(crate)fn get_local_action_endpoint(
+    pub(crate) async fn get_local_action_endpoint(
         &self,
         action_name: &str,
         ctx: &Context,
-    ) -> anyhow::Result<&ActionEndpoint> {
+    ) -> anyhow::Result<ActionEndpoint> {
         //Find action endpoints by name.
-        let ep_list = self
-            .registry
-            .as_ref()
-            .unwrap()
-            .get_action_endpoints(action_name);
+        let registry = self.registry.read().await;
+        let ep_list = registry.get_action_endpoints(action_name);
         let available = match ep_list {
             Some(endpoint_list) => !endpoint_list.has_local(),
             None => false,
@@ -370,7 +374,10 @@ impl ServiceBroker {
             .unwrap()
             .next_local(Some(ctx), &self.options.strategy_factory)
         {
-            Some(ep) => Ok(ep),
+            Some(ep) => {
+                let ep = ep.to_owned();
+                return Ok(ep);
+            }
             None => {
                 bail!(ServiceBrokerError::ServiceNotAvailable {
                     action_name: action_name.to_string(),
@@ -392,10 +399,8 @@ impl ServiceBroker {
                 ctx.event_groups = Some(opts.groups.clone());
             }
             if !self.options.disable_balancer {
-                let eps = self
-                    .registry
-                    .as_ref()
-                    .expect("Registry is not present")
+                let registry = self.registry.read().await;
+                let eps = registry
                     .events
                     .get_all_endpoints(event_name, ctx.event_groups.as_ref());
                 eps.iter().for_each(|ep| {
@@ -414,17 +419,14 @@ impl ServiceBroker {
                         }
                         Vec::with_capacity(0)
                     }
-                    None => self.get_event_groups(event_name),
+                    None => self.get_event_groups(event_name).await,
                 };
                 if groups.capacity() == 0 || groups.is_empty() {
                     return;
                 }
-                let eps = self
-                    .registry
-                    .as_ref()
-                    .expect("Registry is not present")
-                    .events
-                    .get_all_endpoints(event_name, Some(&groups));
+                let registry = self.registry.read().await;
+
+                let eps = registry.events.get_all_endpoints(event_name, Some(&groups));
                 eps.iter().for_each(|ep| {
                     let ep = *ep;
                     let mut new_ctx = ctx.clone();
@@ -465,41 +467,30 @@ impl ServiceBroker {
         self.emit_local_services(ctx, payload).await;
     }
 
-    pub(crate)fn get_local_node_info(&self) -> anyhow::Result<NodeRawInfo> {
-        self.registry.as_ref().unwrap().get_local_node_info(false)
+    pub(crate) async fn get_local_node_info(&self) -> anyhow::Result<NodeRawInfo> {
+        self.registry.read().await.get_local_node_info(false)
     }
 
-    fn get_event_groups(&self, event_name: &str) -> Vec<String> {
-        self.registry
-            .as_ref()
-            .expect("Registry not present")
-            .events
-            .get_groups(event_name)
+    async fn get_event_groups(&self, event_name: &str) -> Vec<String> {
+        let registry = self.registry.read().await;
+        registry.events.get_groups(event_name)
     }
 
     /// Has registered event listener for an event name?
-    fn has_event_listener(&self, event_name: &str) -> bool {
-        !self.get_event_listeners(event_name).is_empty()
-    }
-    /// Get all registered event listener for an event name.
-    fn get_event_listeners(&self, event_name: &str) -> Vec<&EventEndpoint> {
-        self.registry
-            .as_ref()
-            .expect("Registry not present")
-            .events
-            .get_all_endpoints(event_name, None)
+    async fn has_event_listener(&self, event_name: &str) -> bool {
+        let registry = self.registry.read().await;
+        let eps = registry.events.get_all_endpoints(event_name, None);
+        !eps.is_empty()
     }
 
     /// Emit event to local nodes. It is called from transit when a remote event
     ///  received or from `broadcastLocal`.
     async fn emit_local_services(&self, ctx: Context, payload: Payload) {
-        let registry = &self.registry.as_ref().expect("Registry not present");
+        let registry = &self.registry.read().await;
         //TODO: add payload to ctx itself.
         registry.events.emit_local_services(ctx).await;
     }
-   pub(crate)fn get_local_node_services(&self)->Vec<&ServiceItem>{
-        self.registry.as_ref().unwrap().services.get_local_node_service()
-    }
+
     fn get_cpu_usage() {
         todo!("get cpu usageI")
     }
@@ -510,9 +501,10 @@ impl ServiceBroker {
 }
 
 #[derive(Debug)]
-pub(crate)enum ServiceBrokerMessage {
+pub(crate) enum ServiceBrokerMessage {
     AddLocalService(Service),
     RegisterLocalService(ServiceSpec),
+    IsTransit(oneshot::Sender<bool>),
     WaitForServices {
         dependencies: Vec<String>,
         timeout: i64,
@@ -613,18 +605,18 @@ impl PartialEq for ServiceBrokerMessage {
 }
 
 #[derive(Debug)]
-pub(crate)struct HandlerResult {
+pub(crate) struct HandlerResult {
     // pub(crate) data: u32,
     pub(crate) data: Box<dyn Any + Send + Sync>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate)struct CallOptions {
+pub(crate) struct CallOptions {
     meta: Payload,
     node_id: Option<String>,
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate)struct EventOptions {
+pub(crate) struct EventOptions {
     groups: Vec<String>,
 }
 
@@ -666,6 +658,10 @@ mod tests {
     fn get_test_broker(
         recv: mpsc::UnboundedReceiver<ServiceBrokerMessage>,
         sender: mpsc::UnboundedSender<ServiceBrokerMessage>,
+        registry: Arc<RwLock<Registry>>,
+        broker_options: Arc<BrokerOptions>,
+        instance: String,
+        node_id: String,
     ) -> ServiceBroker {
         ServiceBroker {
             reciever: recv,
@@ -673,13 +669,13 @@ mod tests {
             namespace: None,
             metdata: Payload {},
             sender,
-            node_id: "test_node".to_string(),
-            instance: "test_instance".to_string(),
+            instance,
+            node_id,
             services: Vec::new(),
             transit: None,
             logger: Arc::new(Logger {}),
-            options: BrokerOptions::default(),
-            registry: None,
+            options: broker_options,
+            registry,
         }
     }
     fn get_test_schema(dependencies: Option<Vec<String>>) -> Schema {
@@ -751,18 +747,33 @@ mod tests {
     #[test]
     fn broker_call() {
         let (sender, recv) = mpsc::unbounded_channel::<ServiceBrokerMessage>();
-        let (_, fake_recv) = mpsc::unbounded_channel();
-        let mut broker_original = get_test_broker(recv, sender.clone());
-        let broker = get_test_broker(fake_recv, sender.clone());
-        let broker_arc = Arc::new(broker);
+
+        let broker_options = Arc::new(BrokerOptions::default());
+        let node_id = "test_node".to_string();
+        let instance = "test_instance".to_string();
+        let registry = Arc::new(RwLock::new(Registry::new(
+            sender.clone(),
+            node_id.clone(),
+            instance.clone(),
+            Arc::clone(&broker_options),
+        )));
+
+        let mut broker_original = get_test_broker(
+            recv,
+            sender.clone(),
+            registry,
+            broker_options,
+            instance,
+            node_id,
+        );
+
         let action = Action {
             name: "action_func".to_string(),
             visibility: Visibility::Public,
             handler: action_func,
         };
         let service = get_test_service(None, None, Some(vec![action]), Some(sender.clone()));
-        let registry = Registry::new(Arc::clone(&broker_arc), sender.clone());
-        broker_original.registry = Some(registry);
+
         broker_original.start();
         let rt = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
@@ -776,9 +787,9 @@ mod tests {
                         ServiceBrokerMessage::AddLocalService(service) => {
                             broker_original.add_local_service(service)
                         }
-                        ServiceBrokerMessage::RegisterLocalService(service_spec) => broker_original
-                            .register_local_service(service_spec)
-                            .unwrap(),
+                        ServiceBrokerMessage::RegisterLocalService(service_spec) => {
+                            broker_original.register_local_service(service_spec).await
+                        }
                         ServiceBrokerMessage::Call {
                             action_name,
                             params,

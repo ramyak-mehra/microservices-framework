@@ -1,6 +1,6 @@
 use crate::{
     errors::RegistryError, packet::PayloadInfo, service::ServiceSpec, ServiceBroker,
-    ServiceBrokerMessage,
+    ServiceBrokerMessage, broker::BrokerOptions,
 };
 
 use super::*;
@@ -11,11 +11,12 @@ use tokio::sync::mpsc::UnboundedSender;
 
 pub(crate)struct Registry {
     broker_sender: UnboundedSender<ServiceBrokerMessage>,
-    broker: Arc<ServiceBroker>,
+    
     pub(crate) nodes: NodeCatalog,
     pub(crate) services: ServiceCatalog,
     pub(crate) actions: ActionCatalog,
     pub(crate) events: EventCatalog,
+    node_id:String,
     /*
     metrics
     strategy factor
@@ -26,28 +27,32 @@ pub(crate)struct Registry {
 }
 impl Registry {
     pub(crate)fn new(
-        broker: Arc<ServiceBroker>,
+        
         broker_sender: UnboundedSender<ServiceBrokerMessage>,
+        node_id:String,
+        instance_id:String,
+       
+        broker_options:Arc<BrokerOptions>
     ) -> Self {
         //TODO:get the library version for the client
 
         let mut nodes = NodeCatalog::new();
         nodes.create_local_node(
             "1.0".to_string(),
-            broker.node_id.clone(),
-            broker.instance.clone(),
-            broker.options.metadata.clone(),
+            node_id.clone(),
+            instance_id,
+            broker_options.metadata.clone(),
         );
         let services = ServiceCatalog::default();
         let actions = ActionCatalog::default();
-        let events = EventCatalog::new(broker.clone());
+        let events = EventCatalog::new(broker_options);
         Registry {
             broker_sender,
-            broker,
             nodes,
             services,
             actions,
             events,
+            node_id
         }
     }
 
@@ -67,7 +72,7 @@ impl Registry {
     pub(crate)fn register_local_service(&mut self, svc: ServiceSpec) -> anyhow::Result<()> {
         if !self
             .services
-            .has(&svc.full_name, Some(&self.broker.node_id))
+            .has(&svc.full_name, Some(&self.node_id))
         {
             let node = self.nodes.local_node()?.clone();
 
@@ -112,7 +117,8 @@ impl Registry {
             }
             if node.local {
                 //TODO:stuff with middleware and handlers.
-            } else if self.broker.transit.is_some() {
+                //Access is broker_sender is present through channels
+            // } else if self.broker_sender.transit.is_some() {
                 //TODO: for remote services
                 return;
             }
@@ -150,12 +156,12 @@ impl Registry {
     pub(crate)fn unregister_service(&mut self, full_name: &str, node_id: Option<&str>) {
         let id = match node_id {
             Some(node_id) => node_id.to_string(),
-            None => self.broker.node_id.clone(),
+            None => self.node_id.clone(),
         };
         self.services.remove(full_name, &id);
         match node_id {
             Some(id) => {
-                if id == self.broker.node_id {
+                if id == self.node_id {
                     self.regenerate_local_raw_info(Some(true));
                 }
             }
