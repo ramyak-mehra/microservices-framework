@@ -82,7 +82,7 @@ impl EventCatalog {
         });
         res
     }
- pub   fn get_groups(&self, event_name: &str) -> Option<Vec<String>> {
+ pub   fn get_groups(&self, event_name: &str) -> Vec<String> {
         let groups: Option<Vec<String>> = self
             .events
             .iter()
@@ -94,9 +94,9 @@ impl EventCatalog {
             Some(mut groups) => {
                 // TODO: remove duplicates
 
-                Some(groups)
+                groups
             }
-            None => None,
+            None => Vec::with_capacity(0),
         }
     }
 
@@ -140,7 +140,7 @@ impl EventCatalog {
                 return;
             }
             let mut execute = || match ctx.event_type {
-                EventType::Broadcast => {
+                EventType::Broadcast | EventType::BroadcastLocal => {
                     list.endpoints.iter().for_each(|ep| {
                         if ep.is_local() {
                             let mut new_ctx = ctx.clone();

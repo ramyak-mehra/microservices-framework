@@ -65,6 +65,7 @@ pub struct Context {
 pub enum EventType {
     Emit,
     Broadcast,
+    BroadcastLocal
 }
 
 impl Context {

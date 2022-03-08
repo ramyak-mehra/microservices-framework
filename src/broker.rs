@@ -3,15 +3,14 @@ use std::{
     collections::HashMap,
     sync::{mpsc::Receiver, Arc},
 };
-
 use anyhow::{bail, Result};
 use log::{debug, info, warn};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    context::Context,
+    context::{Context, EventType},
     errors::ServiceBrokerError,
-    registry::{self, endpoint_list, node, ActionEndpoint, EndpointTrait, EventEndpoint, Payload},
+    registry::{self, endpoint_list, node::{self, NodeRawInfo}, ActionEndpoint, EndpointTrait, EventEndpoint, Payload, service_item::ServiceItem},
     serializers::{json::JSONSerializer, BaseSerializer},
     strategies::{RoundRobinStrategy, Strategy},
     utils,
@@ -56,6 +55,7 @@ pub struct BrokerOptions {
     transporter: String,
     heartbeat_frequency: Duration,
     heartbeat_timeout: Duration,
+    heartbeat_interval:Duration,
     offline_check_frequency: Duration,
     offline_timeout: Duration,
     neighbours_checkout_timeout: Duration,
@@ -71,15 +71,17 @@ pub struct BrokerOptions {
     dont_wait_for_neighbours: bool,
     pub strategy_factory: RwLock<RoundRobinStrategy>,
     pub serializer: JSONSerializer,
-    pub metadata: Value, /*
-                         discover_node_id : fn()->String,
-                         metrics bool
-                         metric
-                         middleware
-                         loglevel
-                         logformat
-                         transporter factory
-                         */
+    pub metadata: Value,
+    pub disable_balancer: bool, /*
+
+                            discover_node_id : fn()->String,
+                            metrics bool
+                            metric
+                            middleware
+                            loglevel
+                            logformat
+                            transporter factory
+                            */
 }
 
 impl Default for BrokerOptions {
@@ -87,7 +89,8 @@ impl Default for BrokerOptions {
         Self {
             transporter: "TCP".to_string(),
             heartbeat_frequency: Duration::seconds(5),
-            heartbeat_timeout: Duration::seconds(15),
+            heartbeat_timeout: Duration::seconds(30),
+            heartbeat_interval : Duration::seconds(10),
             offline_check_frequency: Duration::seconds(20),
             offline_timeout: Duration::minutes(10),
             dont_wait_for_neighbours: true,
@@ -104,6 +107,7 @@ impl Default for BrokerOptions {
             strategy_factory: RwLock::new(RoundRobinStrategy::new()),
             metadata: Value::Null,
             serializer: JSONSerializer {},
+            disable_balancer: false,
         }
     }
 }
@@ -376,11 +380,96 @@ impl ServiceBroker {
         }
     }
 
-    fn get_local_node_info(&self) -> anyhow::Result<Value> {
+    /// Broadcast an event for all local and remote services
+    async fn broadcast(&self, event_name: &str, payload: Payload, opts: Option<EventOptions>) {
+        debug!("Broadcast {} to {:?}", event_name, opts);
+        let mut futures = Vec::new();
+        if self.transit.is_some() {
+            let mut ctx = Context::new(&self, "test_service".to_string());
+            ctx.event_name = Some(event_name.to_string());
+            ctx.event_type = EventType::Broadcast;
+            if let Some(opts) = &opts {
+                ctx.event_groups = Some(opts.groups.clone());
+            }
+            if !self.options.disable_balancer {
+                let eps = self
+                    .registry
+                    .as_ref()
+                    .expect("Registry is not present")
+                    .events
+                    .get_all_endpoints(event_name, ctx.event_groups.as_ref());
+                eps.iter().for_each(|ep| {
+                    let ep = *ep;
+                    if ep.id() != self.node_id {
+                        let new_ctx = ctx.clone();
+                        todo!()
+                        //TODO: send event request to transit
+                    }
+                })
+            } else {
+                let groups = match &opts {
+                    Some(opts) => {
+                        if opts.groups.is_empty() {
+                            self.get_event_groups(event_name);
+                        }
+                        Vec::with_capacity(0)
+                    }
+                    None => self.get_event_groups(event_name),
+                };
+                if groups.capacity() == 0 || groups.is_empty() {
+                    return;
+                }
+                let eps = self
+                    .registry
+                    .as_ref()
+                    .expect("Registry is not present")
+                    .events
+                    .get_all_endpoints(event_name, Some(&groups));
+                eps.iter().for_each(|ep| {
+                    let ep = *ep;
+                    let mut new_ctx = ctx.clone();
+                    new_ctx.event_groups = Some(groups.clone());
+                    todo!();
+                    //TODO: send event request to transit
+                    // Return here because balancer disabled, so we cant't call the local services
+                    return;
+                })
+            }
+        }
+        futures.push(self.broadcast_local(event_name, payload, opts));
+        //TODO: find a better way to do it.
+        for fut in futures {
+            fut.await;
+        }
+    }
+
+    /// Broadcast an event for all local services
+
+    async fn broadcast_local(
+        &self,
+        event_name: &str,
+        payload: Payload,
+        opts: Option<EventOptions>,
+    ) {
+        debug!("Broadcast {} local event {:?} to ", event_name, opts);
+        if registry::get_internal_service_regex_match(event_name) {
+            //TODO: emit to local event listeners
+        }
+        let mut ctx = Context::new(&self, "test_service".to_string());
+        ctx.event_name = Some(event_name.to_string());
+
+        ctx.event_type = EventType::BroadcastLocal;
+        if let Some(opts) = opts {
+            ctx.event_groups = Some(opts.groups);
+        }
+        self.emit_local_services(ctx, payload).await;
+    }
+
+    pub fn get_local_node_info(&self) -> anyhow::Result<NodeRawInfo> {
         self.registry.as_ref().unwrap().get_local_node_info(false)
     }
 
-    fn get_event_groups(&self, event_name: &str) -> Option<Vec<String>> {
+    fn get_event_groups(&self, event_name: &str) -> Vec<String> {
         self.registry
             .as_ref()
             .expect("Registry not present")
@@ -403,11 +492,14 @@ impl ServiceBroker {
 
     /// Emit event to local nodes. It is called from transit when a remote event
     ///  received or from `broadcastLocal`.
-    async fn emit_local_services(&self, ctx: Context) {
+    async fn emit_local_services(&self, ctx: Context, payload: Payload) {
         let registry = &self.registry.as_ref().expect("Registry not present");
+        //TODO: add payload to ctx itself.
         registry.events.emit_local_services(ctx).await;
     }
-
+   pub fn get_local_node_services(&self)->Vec<&ServiceItem>{
+        self.registry.as_ref().unwrap().services.get_local_node_service()
+    }
     fn get_cpu_usage() {
         todo!("get cpu usageI")
     }
@@ -530,6 +622,10 @@ pub struct HandlerResult {
 pub struct CallOptions {
     meta: Payload,
     node_id: Option<String>,
+}
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EventOptions {
+    groups: Vec<String>,
 }
 
 struct ServiceStatus<'a> {
