@@ -4,8 +4,9 @@ use crate::{
     HandlerResult,
 };
 use anyhow::bail;
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 use serde_json::*;
+use serde_bytes::*;
 use std::{any, fmt::Display};
 
 #[derive(Debug, Clone, Serialize)]
@@ -22,6 +23,7 @@ pub enum PacketType {
     Unknown,
     Event,
     Request,
+
     Response,
     Discover,
     Info,
@@ -69,15 +71,18 @@ impl PartialEq for PacketType {
 }
 
 pub(crate) trait PacketPayload
-where
-    Self: Sized,
+where Self:Sized
 {
-    fn tipe(&self) -> PacketType;
-    fn event_payload(mut self) -> anyhow::Result<PayloadEvent> {
+    fn tipe(&self)->PacketType;
+    fn event_payload(self) -> anyhow::Result<PayloadEvent> {
         bail!("Not an event payload")
     }
-    fn request_paylaod(mut self) -> anyhow::Result<PayloadRequest> {
-        bail!("Not a request payload")
+    fn request_paylaod(self) -> PayloadRequest {
+        panic!("Not a request payload")
+    }
+    fn sender(&self) -> &str;
+    fn instance_id(&self) -> &str {
+        panic!("Only Info packets have instance_id")
     }
 }
 
@@ -107,13 +112,17 @@ impl<P: PacketPayload> Packet<P> {
 }
 
 impl PacketPayload for PayloadRequest {
-    fn tipe(&self) -> PacketType {
+
+    fn tipe(&self)->PacketType {
         PacketType::Request
     }
-
-    fn request_paylaod(self) -> anyhow::Result<PayloadRequest> {
-        Ok(self)
+    fn request_paylaod(self) -> PayloadRequest {
+        self
     }
+    fn sender(&self) -> &str {
+        &self.sender
+    }
+
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -128,8 +137,8 @@ pub(crate) struct PayloadRequest {
     pub(crate) tracing: bool,
     pub(crate) parent_id: Option<String>,
     pub(crate) request_id: String,
-    pub(crate) stream:bool,
-    pub(crate) seq : i32,
+    pub(crate) stream: bool,
+    pub(crate) seq: i32,
     pub(crate) caller: String,
 }
 
@@ -137,14 +146,19 @@ impl PacketPayload for PayloadResponse {
     fn tipe(&self) -> PacketType {
         PacketType::Response
     }
+
+    fn sender(&self) -> &str {
+        &self.sender
+    }
 }
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize  , Deserialize)]
 
 pub(crate) struct PayloadResponse {
     pub(crate) ver: String,
     pub(crate) sender: String,
     pub(crate) id: String,
     pub(crate) success: bool,
+    #[serde(with="serde_bytes")]
     pub(crate) data: Vec<u8>,
     pub(crate) error: String,
     pub(crate) meta: String,
@@ -156,14 +170,17 @@ impl PacketPayload for PayloadEvent {
     fn tipe(&self) -> PacketType {
         PacketType::Event
     }
-    fn event_payload(mut self) -> anyhow::Result<PayloadEvent> {
+    fn event_payload(self) -> anyhow::Result<PayloadEvent> {
         Ok(self)
+    }
+    fn sender(&self) -> &str {
+        &self.sender
     }
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub(crate) struct PayloadEvent {
-    pub(crate) sender:String,
+    pub(crate) sender: String,
     pub(crate) id: String,
     pub(crate) event: String,
     pub(crate) data: Payload,
@@ -181,10 +198,14 @@ pub(crate) struct PayloadEvent {
 #[derive(Debug, Clone, Serialize)]
 pub(crate) struct PayloadHeartbeat {
     pub(crate) cpu: u32,
+    pub(crate) sender: String,
 }
 impl PacketPayload for PayloadHeartbeat {
     fn tipe(&self) -> PacketType {
         PacketType::Heartbeat
+    }
+    fn sender(&self) -> &str {
+        &self.sender
     }
 }
 #[derive(Debug, Clone, Serialize)]
@@ -199,6 +220,9 @@ impl PacketPayload for PayloadPong {
     fn tipe(&self) -> PacketType {
         PacketType::Pongs
     }
+    fn sender(&self) -> &str {
+        &self.sender
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -211,6 +235,9 @@ impl PacketPayload for PayloadPing {
     fn tipe(&self) -> PacketType {
         PacketType::Ping
     }
+    fn sender(&self) -> &str {
+        &self.sender
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -219,12 +246,15 @@ impl PacketPayload for PayloadNull {
     fn tipe(&self) -> PacketType {
         PacketType::Null
     }
+    fn sender(&self) -> &str {
+        "no_sender"
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub(crate) struct PayloadInfo {
     pub(crate) sender: String,
-    pub(crate) services: String,
+    pub(crate) services: Vec<String>,
     pub(crate) config: String,
     pub(crate) ip_list: Vec<String>,
     pub(crate) hostame: String,
@@ -237,5 +267,12 @@ pub(crate) struct PayloadInfo {
 impl PacketPayload for PayloadInfo {
     fn tipe(&self) -> PacketType {
         PacketType::Info
+    }
+    fn sender(&self) -> &str {
+        &self.sender
+    }
+
+    fn instance_id(&self) -> &str {
+        &self.instance_id
     }
 }

@@ -11,7 +11,7 @@ use crate::{
     constants::*,
     context::{Context, EventType},
     errors::{PacketError, ServiceBrokerError},
-    registry::{Action, EndpointTrait, EventEndpoint, Node, Payload},
+    registry::{Action, EndpointTrait, EventEndpoint, Node, Payload, node::NodeRawInfo},
     utils, HandlerResult,
 };
 use crate::{ServiceBroker, ServiceBrokerMessage};
@@ -34,10 +34,9 @@ struct Request {
 }
 
 pub(crate) struct Transit<T: Transporter + Send + Sync> {
-    reciever: mpsc::UnboundedReceiver<TransitMessage>,
     broker: Arc<ServiceBroker>,
     broker_sender: mpsc::UnboundedSender<ServiceBrokerMessage>,
-    tx: T,
+    pub tx: T,
     opts: TransitOptions,
     node_id: String,
     instance_id: String,
@@ -56,14 +55,12 @@ impl<T: Transporter + Send + Sync> Transit<T> {
         opts: TransitOptions,
         transporter: T,
         broker_sender: mpsc::UnboundedSender<ServiceBrokerMessage>,
-        reciever: mpsc::UnboundedReceiver<TransitMessage>,
     ) -> Self {
         let broker = broker.clone();
         let node_id = broker.node_id.clone();
         let instance_id = broker.instance.clone();
 
         Self {
-            reciever,
             broker,
             tx: transporter,
             opts,
@@ -113,7 +110,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
         }
     }
     ///Send DISCONNECT to remote nodes
-    pub fn send_disconnect_packet(&self) {
+    pub async fn send_disconnect_packet(&self) {
         todo!("after publish")
     }
     async fn make_subsciptions(&self) {
@@ -141,8 +138,21 @@ impl<T: Transporter + Send + Sync> Transit<T> {
         todo!("return from the make subscriptions");
     }
 
-    fn message_handler<P: PacketPayload>(&self, cmd: String, packet: Packet<P>) {
-        todo!("implement payload parsing first")
+    async fn message_handler<P: PacketPayload>(&self, cmd: PacketType, packet: Packet<P>) {
+        let payload = packet.payload;
+        //TODO: check for empty payload i.e PayloadNull
+        // TODO: Check protocol version
+
+        if payload.sender() == self.node_id {
+            if cmd == PacketType::Info && payload.instance_id() != self.instance_id {
+                panic!("Service Broker has detected a nodeID conflict, use unique nodeIDS. ServiceBroker has stopped.")
+            }
+            if cmd != PacketType::Event && cmd != PacketType::Request && cmd != PacketType::Response
+            {
+                return;
+            }
+        }
+        todo!()
     }
 
     async fn event_handler(&self, payload: PayloadEvent) -> anyhow::Result<bool> {
@@ -182,8 +192,8 @@ impl<T: Transporter + Send + Sync> Transit<T> {
                 ctx,
                 result_channel: send,
             });
-        if send_res.is_err(){
-           return Ok(false);
+        if send_res.is_err() {
+            return Ok(false);
         }
         match recv.await {
             Ok(value) => Ok(value),
@@ -291,7 +301,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
             parent_id: ctx.parent_id,
             request_id: ctx.request_id.unwrap(),
             caller: ctx.caller.unwrap(),
-          
+
             level: ctx.level,
             tracing: ctx.tracing,
             meta: ctx.meta,
@@ -350,6 +360,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
         let is_braodcast = match ctx.event_type {
             EventType::Broadcast => true,
             EventType::Emit => false,
+            EventType::BroadcastLocal => false,
         };
         let payload_event = PayloadEvent {
             id: ctx.id,
@@ -410,7 +421,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
         }
     }
 
-    async fn discover_nodes(&self) {
+   pub async fn discover_nodes(&self) {
         let packet = Packet::new(P::Discover, None, PayloadNull {});
         let result = self.publish(packet).await;
         if result.is_err() {
@@ -419,7 +430,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
             self.publish_error(err, FAILED_NODES_DISCOVERY, message);
         }
     }
-    async fn discover_node(&self, node_id: String) {
+   pub async fn discover_node(&self, node_id: String) {
         let packet = Packet::new(P::Discover, Some(node_id.clone()), PayloadNull {});
         let result = self.publish(packet).await;
         if result.is_err() {
@@ -431,7 +442,24 @@ impl<T: Transporter + Send + Sync> Transit<T> {
             self.publish_error(err, FAILED_NODES_DISCOVERY, message);
         }
     }
-
+    pub async fn send_node_info(&self, info: NodeRawInfo, node_id: Option<String>) {
+        if !self.conntected || !self.is_ready {
+            return;
+        }
+        let payload = PayloadInfo {
+            sender: todo!(),
+            services: todo!(),
+            config: todo!(),
+            ip_list: todo!(),
+            hostame: todo!(),
+            client: todo!(),
+            seq: todo!(),
+            instance_id: todo!(),
+            meta_data: todo!(),
+        };
+        let packet = Packet::new(P::Info, node_id, payload);
+        todo!("")
+    }
     async fn send_ping(&self, node_id: Option<String>, id: Option<String>) {
         let id = match id {
             Some(id) => id,
@@ -499,9 +527,10 @@ impl<T: Transporter + Send + Sync> Transit<T> {
         Ok(())
     }
 
-    async fn send_heartbeat(&self, local_node: &Node) {
+    pub async fn send_heartbeat(&self, local_node_cpu: u32) {
         let payload = PayloadHeartbeat {
-            cpu: local_node.cpu,
+            cpu: local_node_cpu,
+            sender: self.node_id.clone(),
         };
         let packet = Packet::new(P::Heartbeat, None, payload);
         let result = self.publish(packet).await;
@@ -563,14 +592,6 @@ impl<T: Transporter + Send + Sync> Transit<T> {
             )),
         }
     }
-}
-#[derive(Debug, Display)]
-
-pub enum TransitMessage {
-    #[display(fmt = "Disconnect packet")]
-    SendDisconnectPacket,
-    #[display(fmt = "Heartbeat packet")]
-    SendHeartBeat(u32),
 }
 
 #[derive(Debug, Display)]

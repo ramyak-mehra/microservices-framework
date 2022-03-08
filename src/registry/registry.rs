@@ -13,7 +13,7 @@ pub struct Registry {
     broker_sender: UnboundedSender<ServiceBrokerMessage>,
     broker: Arc<ServiceBroker>,
     pub(crate) nodes: NodeCatalog,
-    services: ServiceCatalog,
+    pub(crate) services: ServiceCatalog,
     pub(crate) actions: ActionCatalog,
     pub(crate) events: EventCatalog,
     /*
@@ -188,11 +188,11 @@ impl Registry {
         self.events.remove(event_name, node_id);
     }
 
-    fn regenerate_local_raw_info(&self, inc_seq: Option<bool>) -> Value {
+    fn regenerate_local_raw_info(&self, inc_seq: Option<bool>) -> NodeRawInfo {
         todo!()
     }
 
-    pub fn get_local_node_info(&self, force: bool) -> anyhow::Result<Value> {
+    pub fn get_local_node_info(&self, force: bool) -> anyhow::Result<NodeRawInfo> {
         // if let None = self.nodes.local_node() {
         //     return Ok(self.regenerate_local_raw_info(None));
         // }
@@ -200,11 +200,7 @@ impl Registry {
             return Ok(self.regenerate_local_raw_info(None));
         }
 
-        let value = self.nodes.local_node()?.raw_info.to_owned();
-        match value {
-            Some(value) => Ok(value),
-            None => bail!(RegistryError::NoLocalNodeFound),
-        }
+        Ok(self.nodes.local_node()?.raw_info().to_owned())
     }
     fn get_node_info(&self, node_id: &str) -> Option<Node> {
         todo!()

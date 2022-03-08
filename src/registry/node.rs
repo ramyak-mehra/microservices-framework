@@ -4,6 +4,8 @@ use chrono::Duration;
 use serde::{Serialize, Serializer};
 use serde_json::Value;
 
+use super::{discoverers::PayloadInfo, Payload};
+
 #[derive(PartialEq, Eq, Clone, Debug, Serialize)]
 pub struct Node {
     pub id: String,
@@ -22,7 +24,7 @@ pub struct Node {
     port: Option<u16>,
     hostname: Option<String>,
     udp_address: Option<IpAddr>,
-    pub raw_info: Option<Value>,
+    raw_info: Option<NodeRawInfo>,
     pub cpu: u32,
     /*
     cpuseq
@@ -112,6 +114,9 @@ impl Node {
         self.metadata = metadata;
         self
     }
+    pub fn raw_info(&self)->&NodeRawInfo{
+        &self.raw_info.as_ref().unwrap()
+    }
 }
 #[derive(PartialEq, Eq, Clone, Debug, Serialize)]
 
@@ -134,5 +139,30 @@ where
     match x {
         Some(x) => s.serialize_i64(x.num_milliseconds()),
         None => s.serialize_none(),
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct NodeRawInfo {
+    pub services: Vec<String>,
+    pub config: String,
+    pub ip_list: Vec<String>,
+    pub hostame: String,
+    pub client: Client,
+    pub seq: usize,
+    pub instance_id: String,
+    pub meta_data: String,
+}
+impl From<PayloadInfo> for NodeRawInfo {
+    fn from(item: PayloadInfo) -> Self {
+        Self {
+            services: item.services,
+            config: item.config,
+            ip_list: item.ip_list,
+            hostame: item.hostame,
+            client: item.client,
+            seq: item.seq,
+            instance_id: item.instance_id,
+            meta_data: item.meta_data,
+        }
     }
 }

@@ -9,8 +9,8 @@ pub struct ServiceItem {
     pub local: bool,
     pub full_name: String,
     version: String,
-    actions: ActionsMap,
-    events : EventsMap
+   pub actions: ActionsMap,
+    pub events : EventsMap
     /*
     eventsmap
     metadata

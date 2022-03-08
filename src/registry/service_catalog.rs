@@ -63,8 +63,8 @@ impl ServiceCatalog {
             .collect()
         // TODO:("implement grouping and all that stuff")
     }
-    pub fn get_local_node_service(&self) {
-        todo!()
+    pub fn get_local_node_service(&self) -> Vec<&ServiceItem> {
+        self.services.iter().filter(|svc| svc.local).collect()
     }
     //remove all endpoints by node_id.
     pub fn remove_all_by_node_id(&mut self, node_id: &str) {

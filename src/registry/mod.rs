@@ -21,7 +21,7 @@ use event_catalog::EventCatalog;
 pub use endpoint_list::EndpointList;
 pub use event_endpoint::EventEndpoint;
 use lazy_static::lazy_static;
-pub use node::{Client, Node};
+pub use node::{Client, Node , NodeRawInfo};
 use node_catalog::NodeCatalog;
 
 use regex::Regex;
@@ -37,7 +37,7 @@ type EventsMap = HashMap<String,EndpointList<EventEndpoint>>;
 lazy_static! {
     static ref RE: Regex = Regex::new(r"^\$").unwrap();
 }
-fn get_internal_service_regex_match(text: &str) -> bool {
+pub fn get_internal_service_regex_match(text: &str) -> bool {
     RE.is_match(text)
 }
 
