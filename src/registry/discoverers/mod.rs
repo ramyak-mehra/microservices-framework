@@ -9,6 +9,7 @@ use log::{info, warn};
 use serde_json::{json, Value};
 pub(crate)use tokio::sync::{mpsc, RwLock, RwLockReadGuard};
 
+use crate::broker_delegate::BrokerDelegate;
 pub(crate) use crate::{
     packet::{PayloadHeartbeat, PayloadInfo},
     transporter::{Transit , Transporter},
@@ -23,7 +24,7 @@ trait Discoverer<T: Transporter + Sync + Send> {
 
     fn broker_sender(&self) -> &mpsc::UnboundedSender<ServiceBrokerMessage>;
 
-    fn broker(&self) -> &Arc<ServiceBroker>;
+    fn broker(&self) -> &Arc<BrokerDelegate>;
 
     fn opts(&self) -> &DiscovererOpts;
 
@@ -112,7 +113,7 @@ trait Discoverer<T: Transporter + Sync + Send> {
                 info!("Node {} disconnected", node_id);
             }
             //TODO: remove pending requests from transit as well.
-            if self.broker().transit.is_some() {}
+            if self.broker().transit_present() {}
         }
     }
 }

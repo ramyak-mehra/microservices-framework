@@ -3,7 +3,7 @@ pub(crate)mod transit;
 use std::sync::Arc;
 
 pub(crate) use crate::{errors::ServiceBrokerError, packet::*};
-use crate::{serializers::BaseSerializer, ServiceBroker};
+use crate::{serializers::{BaseSerializer, json::JSONSerializer}, ServiceBroker, broker_delegate::BrokerDelegate};
 use anyhow::bail;
 use async_trait::async_trait;
 use lazy_static::lazy_static;
@@ -20,8 +20,8 @@ fn balanced_event_regex_replace(topic: &str) -> String {
 }
 #[async_trait]
 pub(crate) trait Transporter {
-    fn broker(&self) -> &Arc<ServiceBroker>;
     fn connected(&self) -> bool;
+    fn broker(&self)->&Arc<BrokerDelegate>;
     fn prefix(&self) -> &String;
     fn has_built_in_balancer(&self) -> bool;
     async fn connect(&self);
@@ -59,16 +59,16 @@ pub(crate) trait Transporter {
             return Ok(());
         }
         self.unsubscribe_from_balanced_commands().await;
-        let services = self.broker().get_local_node_services();
-        let mut futures = Vec::new();
-        services.iter().for_each(|svc| {
-            let svc = *svc;
-            svc.actions.iter().for_each(|item| {
-                futures.push(self.subscibe_balanced_request(item.0));
-            });
-            svc.events.iter().for_each(|item| {})
-        });
         todo!();
+        // let services = self.broker().get_local_node_services();
+        // let mut futures = Vec::new();
+        // services.iter().for_each(|svc| {
+        //     let svc = *svc;
+        //     svc.actions.iter().for_each(|item| {
+        //         futures.push(self.subscibe_balanced_request(item.0));
+        //     });
+        //     svc.events.iter().for_each(|item| {})
+        // });
         Ok(())
     }
     async fn pre_publish<P: PacketPayload + Send + Copy + Serialize>(
@@ -168,6 +168,7 @@ pub(crate) trait Transporter {
         topic_name
     }
     fn serialize<P: PacketPayload + Send + Serialize>(&self, packet: Packet<P>) -> String {
+  
         let serializer = self.broker().serializer();
         //TODO: handle the error
         let data = serializer.serialize(packet).unwrap();

@@ -12,7 +12,7 @@ use crate::{
     context::{Context, EventType},
     errors::{PacketError, ServiceBrokerError},
     registry::{Action, EndpointTrait, EventEndpoint, Node, Payload, node::NodeRawInfo},
-    utils, HandlerResult,
+    utils, HandlerResult, broker_delegate::BrokerDelegate,
 };
 use crate::{ServiceBroker, ServiceBrokerMessage};
 use anyhow::{self, bail};
@@ -34,7 +34,7 @@ struct Request {
 }
 
 pub(crate) struct Transit<T: Transporter + Send + Sync> {
-    broker: Arc<ServiceBroker>,
+    broker:Arc<BrokerDelegate>,
     broker_sender: mpsc::UnboundedSender<ServiceBrokerMessage>,
     pub(crate)tx: T,
     opts: TransitOptions,
@@ -46,22 +46,24 @@ pub(crate) struct Transit<T: Transporter + Send + Sync> {
     conntected: bool,
     disconnecting: bool,
     is_ready: bool,
+    broker_started:bool,
     pending_requests: HashMap<String, Request>,
 }
 
 impl<T: Transporter + Send + Sync> Transit<T> {
     fn new(
-        broker: Arc<ServiceBroker>,
+        broker:Arc<BrokerDelegate>,
         opts: TransitOptions,
         transporter: T,
         broker_sender: mpsc::UnboundedSender<ServiceBrokerMessage>,
     ) -> Self {
-        let broker = broker.clone();
-        let node_id = broker.node_id.clone();
-        let instance_id = broker.instance.clone();
+    
+        let node_id = broker.node_id().to_owned();
+        let instance_id = broker.instance_id().to_owned();
 
         Self {
             broker,
+            broker_started:false,
             tx: transporter,
             opts,
             node_id,
@@ -160,7 +162,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
             "Event {} received from {} node {:?}",
             payload.event, payload.sender, payload.groups
         );
-        if !self.broker.started {
+        if !self.broker_started {
             warn!(
                 "Incoming {} event from {} node is dropped, because broker is stopped",
                 payload.event, payload.sender
@@ -168,7 +170,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
             return Ok(false);
         }
         //TODO: handle service name not present
-        let mut ctx = Context::new(self.broker.as_ref(), "".to_string());
+        let mut ctx = Context::new(self.broker.get_broker(), "".to_string());
         ctx.id = payload.id;
         ctx.event_name = Some(payload.event);
         ctx.params = Some(payload.data);
@@ -207,7 +209,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
             payload.action, payload.sender
         );
 
-        if !self.broker.started {
+        if !self.broker_started {
             warn!(
                 "Incoming '{}' request from '{}' node is dropped because broker is stopped.",
                 payload.action, payload.sender
@@ -220,7 +222,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
         //TODO: check for stream dont't whats that for now
         let action_name = payload.action.clone();
         let service = utils::service_from_action(&action_name);
-        let mut ctx = Context::new(self.broker.as_ref(), service);
+        let mut ctx = Context::new(self.broker.get_broker(), service);
         ctx.id = payload.id;
         //TODO: ctx.setParams
         ctx.parent_id = payload.parent_id;

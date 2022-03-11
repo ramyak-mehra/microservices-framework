@@ -1,6 +1,6 @@
 use std::{any, sync::Arc};
 
-use crate::ServiceBroker;
+use crate::{ServiceBroker, serializers::json::JSONSerializer, broker_delegate::BrokerDelegate};
 
 use super::{balanced_event_regex_replace, PacketType, Transporter};
 use anyhow::bail;
@@ -13,13 +13,13 @@ pub(crate)struct NatsTransporter {
     has_built_in_balancer: bool,
     subscriptions: Vec<Arc<Subscription>>,
     client: Option<Connection>,
-    broker: Arc<ServiceBroker>,
+    broker: Arc<BrokerDelegate>,
     prefix: String,
 }
 
 impl NatsTransporter {
-    fn new(opts: NatsOptions, broker: Arc<ServiceBroker>) -> Self {
-        let prefix = match &broker.namespace {
+    fn new(opts: NatsOptions, broker: Arc<BrokerDelegate>  ) -> Self {
+        let prefix = match broker.namespace() {
             Some(prefix) => prefix.to_owned(),
             None => "MOL".to_string(),
         };
@@ -135,7 +135,8 @@ impl NatsTransporter {
 }
 #[async_trait]
 impl Transporter for NatsTransporter {
-    fn broker(&self) -> &Arc<crate::ServiceBroker> {
+ 
+    fn broker(&self)->&Arc<BrokerDelegate>{
         &self.broker
     }
 

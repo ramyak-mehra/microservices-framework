@@ -1,4 +1,4 @@
-use crate::transporter::nats::NatsTransporter;
+use crate::{transporter::nats::NatsTransporter, broker_delegate::BrokerDelegate};
 
 use super::*;
 
@@ -7,11 +7,11 @@ struct LocalDiscoverer {
     registry: Arc<RwLock<Registry>>,
     opts: DiscovererOpts,
     broker_sender: mpsc::UnboundedSender<ServiceBrokerMessage>,
-    broker: Arc<ServiceBroker>,
+    broker: Arc<BrokerDelegate>,
 }
 
 impl LocalDiscoverer {
-    fn new(registry: Arc<RwLock<Registry>>) {}
+    fn new(registry: Arc<RwLock<Registry>> , ) {}
 }
 #[async_trait]
 impl Discoverer<NatsTransporter> for LocalDiscoverer {
@@ -23,7 +23,7 @@ impl Discoverer<NatsTransporter> for LocalDiscoverer {
         &self.broker_sender
     }
 
-    fn broker(&self) -> &Arc<ServiceBroker> {
+    fn broker(&self) -> &Arc<BrokerDelegate> {
         &self.broker
     }
 
@@ -48,7 +48,7 @@ impl Discoverer<NatsTransporter> for LocalDiscoverer {
         match info {
             Ok(info) => {
                 if let None = node_id {
-                    if self.broker.options.disable_balancer {
+                    if self.broker.options().disable_balancer {
                         let _ = self.transit.tx.make_balanced_subscriptions().await;
                     }
                 };
