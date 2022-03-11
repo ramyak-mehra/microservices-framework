@@ -44,7 +44,7 @@ pub(crate)fn get_internal_service_regex_match(text: &str) -> bool {
 #[derive(PartialEq, Eq, Debug)]
 pub(crate)struct Logger {}
 
-pub(crate)type ActionHandler = fn(Context, Option<Payload>) -> HandlerResult;
+pub(crate)type ActionHandler = fn(Context) -> HandlerResult;
 pub(crate)type EventHandler = fn(Context);
 #[derive(Default, Debug, PartialEq, Eq, Clone , Serialize)]
 pub(crate)struct Payload {}

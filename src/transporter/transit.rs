@@ -173,8 +173,10 @@ impl<T: Transporter + Send + Sync> Transit<T> {
         let mut ctx = Context::new(self.broker.get_broker(), "".to_string());
         ctx.id = payload.id;
         ctx.event_name = Some(payload.event);
-        ctx.params = Some(payload.data);
+       
+
         ctx.event_groups = Some(payload.groups);
+        ctx.set_params(payload.data);;
         ctx.event_type = if payload.broadcast {
             EventType::Broadcast
         } else {
@@ -242,7 +244,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
         let endpoint = endpoint.clone();
         ctx.set_endpoint(&endpoint, Some(action_name), None);
         let params = payload.params;
-        let result = task::spawn_blocking(move || (endpoint.action.handler)(ctx, params)).await?;
+        let result = task::spawn_blocking(move || (endpoint.action.handler)(ctx)).await?;
         todo!("handler sending response");
         Ok(())
     }

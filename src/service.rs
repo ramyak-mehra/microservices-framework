@@ -257,10 +257,10 @@ mod tests {
     fn test_stop_func() {
         println!("test stop func");
     }
-    fn action_func(context: Context, payload: Option<Payload>) -> HandlerResult {
+    fn action_func(context: Context) -> HandlerResult {
         println!("action_func");
         println!("context: {:?}", context);
-        println!("payload: {:?}", payload);
+        println!("payload: {:?}", context.params);
         HandlerResult { data: Box::new(1) }
     }
 

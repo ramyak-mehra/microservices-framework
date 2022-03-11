@@ -172,6 +172,9 @@ impl Context {
         self.action = action;
         self.event = event;
     }
+    pub(crate) fn set_params(&mut self , params : Payload){
+        self.params = Some(params)
+    }
 
     async fn call(
         &self,

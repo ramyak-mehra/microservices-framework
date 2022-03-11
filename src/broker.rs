@@ -272,6 +272,7 @@ impl ServiceBroker {
             .find_next_action_endpoint(action_name, &opts, &ctx)
             .await?;
         let endpoint = endpoint.clone();
+        
         if endpoint.is_local() {
             debug!(
                 "Call action locally. {{ action: {} , request_id : {:?} }}",
@@ -287,7 +288,7 @@ impl ServiceBroker {
             )
         }
         task::spawn_blocking(move || {
-            let result = (endpoint.action.handler)(ctx, Some(params));
+            let result = (endpoint.action.handler)(ctx);
             let _ = sender.send(Ok(result));
         });
         Ok(())
@@ -647,7 +648,7 @@ mod tests {
     fn test_stop_func() {
         println!("test stop func");
     }
-    fn action_func(context: Context, payload: Option<Payload>) -> HandlerResult {
+    fn action_func(context: Context) -> HandlerResult {
         let data = fibonacci(40);
 
         HandlerResult {
