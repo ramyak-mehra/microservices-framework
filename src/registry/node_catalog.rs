@@ -92,14 +92,16 @@ impl NodeCatalog {
         });
         count
     }
-    pub(crate) fn process_node_info(&mut self, payload: PayloadInfo) {
+    /// Process incoming INFO packet payload.
+    /// Returns (bool , bool , bool) -> (Is the node new , do we have to call register_services again  , is_reconnected)
+    pub(crate) async fn process_node_info(&mut self, payload: PayloadInfo)->(bool , bool , bool) {
         let node_id = payload.sender.clone();
         let mut old_node = self.get_node_mut(&node_id);
         let mut is_new = false;
         let mut is_reconnected = false;
         let update =
             |node: &mut Node, payload, is_reconnected| node.update(payload, is_reconnected);
-        let need_register = match old_node {
+        let (need_register, has_services) = match old_node {
             Some(node) => {
                 if !node.available {
                     is_reconnected = true;
@@ -107,19 +109,22 @@ impl NodeCatalog {
                     node.available = true;
                     node.offline_since = None;
                 }
-                update(node, payload, is_reconnected)
+                (
+                    update(node, payload, is_reconnected),
+                    !node.services.is_empty(),
+                )
             }
             None => {
                 is_new = true;
                 let mut node = Node::new(node_id.clone());
                 let need_register = update(&mut node, payload, is_reconnected);
+                let has_services = !node.services.is_empty();
                 self.add(&node_id, node);
-                need_register
+                (need_register, has_services)
             }
         };
-        // if need_register && 
-
-
+        
+        (is_new , need_register && has_services , is_reconnected)
     }
     //Returns a bool if there was a node availabel that is removed
     pub(crate) fn disconnected(&mut self, node_id: &str, is_unexpected: bool) -> Option<Node> {

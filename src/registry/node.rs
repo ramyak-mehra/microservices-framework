@@ -1,10 +1,9 @@
 use std::net::IpAddr;
-
-use chrono::Duration;
+use std::time::Duration;
 use serde::{Serialize, Serializer};
 use serde_json::Value;
 
-use super::{discoverers::PayloadInfo, Payload};
+use super::{discoverers::PayloadInfo, Payload, ServiceItemInfo};
 
 #[derive(PartialEq, Eq, Clone, Debug, Serialize)]
 pub(crate)struct Node {
@@ -12,8 +11,8 @@ pub(crate)struct Node {
     instance_id: Option<String>,
     pub(crate)available: bool,
     pub(crate)local: bool,
-    #[serde(serialize_with = "duration_serialzie")]
-    last_heartbeat_time: Duration,
+    #[serde(serialize_with = "option_duration_serialzie")]
+  pub(crate)  last_heartbeat_time: Option<Duration>,
     metadata: Value,
     /* feields that need to be added later.
     config
@@ -26,13 +25,13 @@ pub(crate)struct Node {
     udp_address: Option<IpAddr>,
     raw_info: Option<NodeRawInfo>,
     pub(crate)cpu: u32,
+    cpuseq:usize,
     /*
-    cpuseq
     */
-    pub(crate)services: Vec<String>,
+    pub(crate)services: Vec<ServiceItemInfo>,
     pub(crate)seq: usize,
     #[serde(serialize_with = "option_duration_serialzie")]
-    offline_since: Option<Duration>,
+   pub(crate) offline_since: Option<Duration>,
 }
 
 impl Node {
@@ -49,22 +48,27 @@ impl Node {
             /*
             change this later with actual process uptime.
             */
-            last_heartbeat_time: Duration::seconds(1),
+            last_heartbeat_time: None,
             ip_list: Vec::new(),
             port: None,
             hostname: None,
             udp_address: None,
             services: Vec::new(),
             seq: 0,
+            cpuseq : 0,
             cpu: 0,
             offline_since: None,
         }
     }
-    pub(crate)fn update(&mut self) {
+    pub(crate)fn update(&mut self , payload:PayloadInfo , is_reconnected:bool) ->bool{
         todo!()
     }
-    pub(crate)fn update_local_info(&mut self) {
-        todo!()
+    pub(crate)fn update_local_info(&mut self , cpu_usage:u32) {
+        if self.cpu != cpu_usage{
+            self.cpu = cpu_usage;
+         self.cpuseq.saturating_add(1);
+        }
+        
     }
     pub(crate)fn hearbeat(&mut self) {
         if !self.available {
@@ -73,7 +77,7 @@ impl Node {
         }
         todo!()
     }
-    pub(crate)fn disconnected(&mut self) {
+    pub(crate)fn disconnected(&mut self , is_unexpected:bool) {
         if self.available {
             self.seq = self.seq.saturating_add(1);
             /* update this with process uptime
@@ -126,24 +130,19 @@ pub(crate)struct Client {
     pub(crate) lang_version: String,
 }
 
-fn duration_serialzie<S>(x: &Duration, s: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    s.serialize_i64(x.num_milliseconds())
-}
+
 fn option_duration_serialzie<S>(x: &Option<Duration>, s: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
     match x {
-        Some(x) => s.serialize_i64(x.num_milliseconds()),
+        Some(x) => s.serialize_u128(x.as_millis()),
         None => s.serialize_none(),
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub(crate)struct NodeRawInfo {
-    pub(crate)services: Vec<String>,
+    pub(crate)services: Vec<ServiceItemInfo>,
     pub(crate)config: String,
     pub(crate)ip_list: Vec<String>,
     pub(crate)hostame: String,

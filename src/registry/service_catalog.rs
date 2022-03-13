@@ -96,7 +96,7 @@ impl ServiceCatalog {
             .collect()
         // TODO:("implement grouping and all that stuff")
     }
-    pub(crate) fn get_local_node_service(&self) -> Vec<ServiceItemInfo> {
+    pub(crate) fn get_local_node_services(&self) -> Vec<ServiceItemInfo> {
         self.services
             .iter()
             .filter(|svc| svc.local)

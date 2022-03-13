@@ -1,13 +1,14 @@
 use std::time::Duration;
 
 use crate::{
-    broker::BrokerOptions, errors::RegistryError, packet::PayloadInfo, service::ServiceSpec, utils,
-    ServiceBroker, ServiceBrokerMessage,
+    broker::BrokerOptions, errors::RegistryError, packet::PayloadInfo,
+    registry::discoverers::NodeEvents, service::ServiceSpec, utils, ServiceBroker,
+    ServiceBrokerMessage,
 };
 
 use super::*;
 use anyhow::bail;
-use log::warn;
+use log::{info, warn, debug};
 use serde_json::Value;
 use tokio::sync::mpsc::UnboundedSender;
 #[derive(Debug)]
@@ -75,7 +76,7 @@ impl Registry {
         if !self.services.has(&svc.full_name, Some(&self.node_id)) {
             let node = self.nodes.local_node()?.clone();
             // Due to rust ownership rules we can't have mutable or immutable reference here.
-            // Find a better way to handle refetching the services 
+            // Find a better way to handle refetching the services
             let service_pos = self.services.add(&node, &svc, true);
 
             if let Some(actions) = svc.actions {
@@ -87,13 +88,13 @@ impl Registry {
 
             {
                 let local_node = self.nodes.local_node_mut()?;
-                let service =self.services.get_at(service_pos)?;
+                let service = self.services.get_at(service_pos)?;
                 local_node.services.push(service.into());
             }
         }
         Ok(())
     }
-    pub(crate) fn register_services() {
+    pub(crate) fn register_services(&mut self) {
         todo!("add remote serice support")
     }
     fn check_action_visibility(action: &Action, node: &Node) -> bool {
@@ -215,8 +216,46 @@ impl Registry {
     fn get_node_info(&self, node_id: &str) -> Option<Node> {
         todo!()
     }
-    pub(crate) fn process_node_info(&self, node_id: &str, payload: PayloadInfo) {
-        todo!()
+    ///Process an incoming node INFO packet.
+    pub(crate) async fn process_node_info(&mut self, node_id: &str, payload: PayloadInfo) {
+        let (is_new, register_services, is_reconnected) =
+            self.nodes.process_node_info(payload).await;
+        let node = self.nodes.get_node(node_id).unwrap();
+        if register_services {
+            //TODO: register services
+            //    { self.register_services();}
+        }
+        if is_new {
+            let data = serde_json::json!({"node": node , "reconnected":false});
+            let _ = self
+                .broker_sender
+                .send(ServiceBrokerMessage::BroadcastLocal {
+                    event_name: NodeEvents::Connected.to_string(),
+                    data: data,
+                    opts: Value::Null,
+                });
+            info!("Node {} connected", node_id)
+        } else if is_reconnected {
+            let data = serde_json::json!({"node": node , "reconnected":true});
+            let _ = self
+                .broker_sender
+                .send(ServiceBrokerMessage::BroadcastLocal {
+                    event_name: NodeEvents::Connected.to_string(),
+                    data: data,
+                    opts: Value::Null,
+                });
+            info!("Node {} reconnected", node_id)
+        } else {
+            let data = serde_json::json!({ "node": node });
+            let _ = self
+                .broker_sender
+                .send(ServiceBrokerMessage::BroadcastLocal {
+                    event_name: NodeEvents::Updated.to_string(),
+                    data: data,
+                    opts: Value::Null,
+                });
+            debug!("Node {} updated", node_id)
+        }
     }
     pub(crate) fn get_node_list(&self, only_available: bool, with_services: bool) -> Vec<&Node> {
         self.nodes.list(only_available, with_services)
