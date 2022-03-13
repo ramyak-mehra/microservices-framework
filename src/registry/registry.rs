@@ -1,22 +1,25 @@
+use std::time::Duration;
+
 use crate::{
-    errors::RegistryError, packet::PayloadInfo, service::ServiceSpec, ServiceBroker,
-    ServiceBrokerMessage, broker::BrokerOptions,
+    broker::BrokerOptions, errors::RegistryError, packet::PayloadInfo, service::ServiceSpec, utils,
+    ServiceBroker, ServiceBrokerMessage,
 };
 
 use super::*;
 use anyhow::bail;
+use log::warn;
 use serde_json::Value;
 use tokio::sync::mpsc::UnboundedSender;
 #[derive(Debug)]
 
-pub(crate)struct Registry {
+pub(crate) struct Registry {
     broker_sender: UnboundedSender<ServiceBrokerMessage>,
-    
+
     pub(crate) nodes: NodeCatalog,
     pub(crate) services: ServiceCatalog,
     pub(crate) actions: ActionCatalog,
     pub(crate) events: EventCatalog,
-    node_id:String,
+    node_id: String,
     /*
     metrics
     strategy factor
@@ -26,13 +29,12 @@ pub(crate)struct Registry {
     */
 }
 impl Registry {
-    pub(crate)fn new(
-        
+    pub(crate) fn new(
         broker_sender: UnboundedSender<ServiceBrokerMessage>,
-        node_id:String,
-        instance_id:String,
-       
-        broker_options:Arc<BrokerOptions>
+        node_id: String,
+        instance_id: String,
+
+        broker_options: Arc<BrokerOptions>,
     ) -> Self {
         //TODO:get the library version for the client
 
@@ -52,7 +54,7 @@ impl Registry {
             services,
             actions,
             events,
-            node_id
+            node_id,
         }
     }
 
@@ -69,30 +71,29 @@ impl Registry {
     fn update_metrics(&self) {
         todo!("update metrics")
     }
-    pub(crate)fn register_local_service(&mut self, svc: ServiceSpec) -> anyhow::Result<()> {
-        if !self
-            .services
-            .has(&svc.full_name, Some(&self.node_id))
-        {
+    pub(crate) fn register_local_service(&mut self, svc: ServiceSpec) -> anyhow::Result<()> {
+        if !self.services.has(&svc.full_name, Some(&self.node_id)) {
             let node = self.nodes.local_node()?.clone();
+            // Due to rust ownership rules we can't have mutable or immutable reference here.
+            // Find a better way to handle refetching the services 
+            let service_pos = self.services.add(&node, &svc, true);
 
-            let service_full_name = self.services.add(&node, &svc, true);
             if let Some(actions) = svc.actions {
-                self.register_actions(&node, &service_full_name, actions)?;
+                self.register_actions(&node, &service_pos, actions)?;
             }
             if let Some(events) = svc.events {
-                self.register_events(&node, &service_full_name, events)?;
+                self.register_events(&node, &service_pos, events)?;
             }
 
             {
                 let local_node = self.nodes.local_node_mut()?;
-
-                local_node.services.push(service_full_name);
+                let service =self.services.get_at(service_pos)?;
+                local_node.services.push(service.into());
             }
         }
         Ok(())
     }
-    pub(crate)fn register_services() {
+    pub(crate) fn register_services() {
         todo!("add remote serice support")
     }
     fn check_action_visibility(action: &Action, node: &Node) -> bool {
@@ -106,10 +107,10 @@ impl Registry {
     fn register_actions(
         &mut self,
         node: &Node,
-        service_full_name: &str,
+        service_pos: &usize,
         actions: Vec<Action>,
     ) -> anyhow::Result<()> {
-        let service = self.services.get_mut(service_full_name, Some(&node.id))?;
+        let service = self.services.get_at_mut(*service_pos)?;
 
         actions.iter().for_each(|action| {
             if !Registry::check_action_visibility(action, node) {
@@ -118,7 +119,7 @@ impl Registry {
             if node.local {
                 //TODO:stuff with middleware and handlers.
                 //Access is broker_sender is present through channels
-            // } else if self.broker_sender.transit.is_some() {
+                // } else if self.broker_sender.transit.is_some() {
                 //TODO: for remote services
                 return;
             }
@@ -136,13 +137,16 @@ impl Registry {
         // let action_ep = ActionEndpoint::new(node, service, action);
         // Ok(action_ep)
     }
-    pub(crate)fn has_services(&self, full_name: &str, node_id: Option<&str>) -> bool {
+    pub(crate) fn has_services(&self, full_name: &str, node_id: Option<&str>) -> bool {
         self.services.has(full_name, node_id)
     }
-    pub(crate)fn get_action_endpoints(&self, action_name: &str) -> Option<&EndpointList<ActionEndpoint>> {
+    pub(crate) fn get_action_endpoints(
+        &self,
+        action_name: &str,
+    ) -> Option<&EndpointList<ActionEndpoint>> {
         self.actions.get(action_name)
     }
-    pub(crate)fn get_action_endpoint_by_node_id(
+    pub(crate) fn get_action_endpoint_by_node_id(
         &self,
         action_name: &str,
         node_id: &str,
@@ -153,7 +157,7 @@ impl Registry {
         }
         None
     }
-    pub(crate)fn unregister_service(&mut self, full_name: &str, node_id: Option<&str>) {
+    pub(crate) fn unregister_service(&mut self, full_name: &str, node_id: Option<&str>) {
         let id = match node_id {
             Some(node_id) => node_id.to_string(),
             None => self.node_id.clone(),
@@ -170,7 +174,7 @@ impl Registry {
             }
         }
     }
-    pub(crate)fn unregister_service_by_node_id(&mut self, node_id: &str) {
+    pub(crate) fn unregister_service_by_node_id(&mut self, node_id: &str) {
         self.services.remove_all_by_node_id(node_id);
     }
     fn unregiste_action(&mut self, node_id: &str, action_name: &str) {
@@ -180,10 +184,10 @@ impl Registry {
     fn register_events(
         &mut self,
         node: &Node,
-        service_full_name: &str,
+        service_pos: &usize,
         events: Vec<Event>,
     ) -> anyhow::Result<()> {
-        let service = self.services.get_mut(service_full_name, Some(&node.id))?;
+        let service = self.services.get_at(*service_pos)?;
         events.iter().for_each(|event| {
             self.events.add(node, service, event.to_owned());
         });
@@ -198,7 +202,7 @@ impl Registry {
         todo!()
     }
 
-    pub(crate)fn get_local_node_info(&self, force: bool) -> anyhow::Result<NodeRawInfo> {
+    pub(crate) fn get_local_node_info(&self, force: bool) -> anyhow::Result<NodeRawInfo> {
         // if let None = self.nodes.local_node() {
         //     return Ok(self.regenerate_local_raw_info(None));
         // }
@@ -214,15 +218,39 @@ impl Registry {
     pub(crate) fn process_node_info(&self, node_id: &str, payload: PayloadInfo) {
         todo!()
     }
-    pub(crate)fn get_node_list(&self, only_available: bool, with_services: bool) -> Vec<&Node> {
+    pub(crate) fn get_node_list(&self, only_available: bool, with_services: bool) -> Vec<&Node> {
         self.nodes.list(only_available, with_services)
     }
-    pub(crate)fn get_services_list(&self, opts: ListOptions) -> Vec<&ServiceItem> {
+    pub(crate) fn get_services_list(&self, opts: ListOptions) -> Vec<&ServiceItem> {
         self.services.list(opts)
+    }
+    pub(crate) fn set_last_heartbeat_time(&mut self, node_id: &str, time: Duration) {
+        let node = self.nodes.get_node_mut(node_id).unwrap();
+        node.last_heartbeat_time = Some(time);
     }
     fn get_action_list(&self, opts: ListOptions) -> Vec<&ActionEndpoint> {
         //self.actions.list(opts)
         todo!()
+    }
+    async fn check_remote_nodes(&mut self, heartbeat_timeout: Duration) {
+        let now = utils::process_uptime();
+        for node in self.nodes.nodes.values_mut() {
+            if node.local || !node.available {
+                continue;
+            }
+            match node.last_heartbeat_time {
+                Some(last) => {
+                    if (now - last) > heartbeat_timeout {
+                        warn!("Hearbeat is not received from {} node.", node.id);
+                        // self.nodes.disconnected(&node.id , true);
+                    }
+                }
+                None => {
+                    node.last_heartbeat_time = Some(now.clone());
+                    continue;
+                }
+            }
+        }
     }
     fn get_event_list(&self) -> Vec<&EventEndpoint> {
         todo!()

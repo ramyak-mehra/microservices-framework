@@ -12,23 +12,24 @@ pub(crate)mod event_catalog;
 
 use std::collections::HashMap;
 use std::sync::Arc;
-
+use regex::Regex;
 use super::service::Service;
 use crate::{context::Context, strategies::Strategy, HandlerResult};
 use action_catalog::ActionCatalog;
-pub(crate)use action_endpoint::ActionEndpoint;
 use event_catalog::EventCatalog;
-pub(crate)use endpoint_list::EndpointList;
-pub(crate)use event_endpoint::EventEndpoint;
 use lazy_static::lazy_static;
-pub(crate)use node::{Client, Node , NodeRawInfo};
 use node_catalog::NodeCatalog;
 
-use regex::Regex;
-pub(crate)use registry::Registry;
 use serde::Serialize;
 use service_catalog::ServiceCatalog;
 use service_item::ServiceItem;
+
+pub(crate)use registry::Registry;
+pub(crate)use action_endpoint::ActionEndpoint;
+pub(crate)use endpoint_list::EndpointList;
+pub(crate)use event_endpoint::EventEndpoint;
+pub(crate)use node::{Client, Node , NodeRawInfo};
+pub(crate) use service_item::{ServiceItemInfo};
 // pub(crate)use event_endpoint::EventEndpoint;
 
 type ActionsMap = HashMap<String, EndpointList<ActionEndpoint>>;
@@ -73,7 +74,7 @@ impl Action {
     // }
 }
 
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug , Serialize)]
 pub(crate)enum Visibility {
     Published,
     Public,
