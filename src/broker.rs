@@ -492,9 +492,7 @@ impl ServiceBroker {
         registry.events.emit_local_services(ctx).await;
     }
 
-    fn get_cpu_usage() {
-        todo!("get cpu usageI")
-    }
+  
 
     fn generate_uid() -> String {
         utils::generate_uuid()

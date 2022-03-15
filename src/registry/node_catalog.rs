@@ -126,7 +126,7 @@ impl NodeCatalog {
         
         (is_new , need_register && has_services , is_reconnected)
     }
-    //Returns a bool if there was a node availabel that is removed
+    //Returns a node if it was available and removed.
     pub(crate) fn disconnected(&mut self, node_id: &str, is_unexpected: bool) -> Option<Node> {
         let node = self.get_node_mut(node_id);
         if let Some(node) = node {

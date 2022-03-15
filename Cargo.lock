@@ -688,12 +688,14 @@ dependencies = [
  "hostname",
  "lazy_static",
  "log",
+ "process_uptime",
  "regex",
  "serde",
  "serde_bytes",
  "serde_json",
  "thiserror",
  "tokio",
+ "tokio-js-set-interval",
  "uuid",
 ]
 
@@ -902,6 +904,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c7342d5883fbccae1cc37a2353b09c87c9b0f3afd73f5fb9bba687a1f733b029"
 dependencies = [
  "unicode-xid",
+]
+
+[[package]]
+name = "process_uptime"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cca604a2c925f729324f7fa192d0ea8630081ec80a781dc224c4b994d8305026"
+dependencies = [
+ "anyhow",
+ "libc",
 ]
 
 [[package]]
@@ -1322,6 +1334,16 @@ dependencies = [
  "signal-hook-registry",
  "tokio-macros",
  "winapi 0.3.9",
+]
+
+[[package]]
+name = "tokio-js-set-interval"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df01ec7e47dfcee440ef0c06c11cc4aa5f18d3b944864d7371372d7c1558c73f"
+dependencies = [
+ "lazy_static",
+ "tokio",
 ]
 
 [[package]]

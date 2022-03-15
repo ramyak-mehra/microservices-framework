@@ -8,8 +8,8 @@ use crate::{
 
 use super::*;
 use anyhow::bail;
-use log::{info, warn, debug};
-use serde_json::Value;
+use log::{debug, info, warn};
+use serde_json::{json, Value};
 use tokio::sync::mpsc::UnboundedSender;
 #[derive(Debug)]
 
@@ -199,8 +199,9 @@ impl Registry {
         self.events.remove(event_name, node_id);
     }
 
-    fn regenerate_local_raw_info(&self, inc_seq: Option<bool>) -> NodeRawInfo {
-        todo!()
+    fn regenerate_local_raw_info(&self, inc_seq: Option<bool>) -> anyhow::Result<NodeRawInfo> {
+        // let mut node = self.nodes.local_node_mut()?;
+        todo!("")
     }
 
     pub(crate) fn get_local_node_info(&self, force: bool) -> anyhow::Result<NodeRawInfo> {
@@ -208,13 +209,21 @@ impl Registry {
         //     return Ok(self.regenerate_local_raw_info(None));
         // }
         if force {
-            return Ok(self.regenerate_local_raw_info(None));
+            return self.regenerate_local_raw_info(None);
         }
 
         Ok(self.nodes.local_node()?.raw_info().to_owned())
     }
-    fn get_node_info(&self, node_id: &str) -> Option<Node> {
-        todo!()
+    fn get_node_info(&self, node_id: &str) -> Option<NodeRawInfo> {
+        match self.nodes.get_node(node_id) {
+            Some(node) => {
+                if node.local {
+                    return Some(self.get_local_node_info(false).unwrap());
+                }
+                return Some(node.raw_info().to_owned());
+            }
+            None => None,
+        }
     }
     ///Process an incoming node INFO packet.
     pub(crate) async fn process_node_info(&mut self, node_id: &str, payload: PayloadInfo) {
@@ -271,8 +280,9 @@ impl Registry {
         //self.actions.list(opts)
         todo!()
     }
-    async fn check_remote_nodes(&mut self, heartbeat_timeout: Duration) {
+    pub(crate) async fn check_remote_nodes(&mut self, heartbeat_timeout: Duration) {
         let now = utils::process_uptime();
+        let mut to_be_disconected = Vec::new();
         for node in self.nodes.nodes.values_mut() {
             if node.local || !node.available {
                 continue;
@@ -280,8 +290,7 @@ impl Registry {
             match node.last_heartbeat_time {
                 Some(last) => {
                     if (now - last) > heartbeat_timeout {
-                        warn!("Hearbeat is not received from {} node.", node.id);
-                        // self.nodes.disconnected(&node.id , true);
+                        to_be_disconected.push(node.id.clone());
                     }
                 }
                 None => {
@@ -290,6 +299,50 @@ impl Registry {
                 }
             }
         }
+        to_be_disconected.iter().for_each(|id| {
+            warn!("Hearbeat is not received from {} node.", id);
+            // Node cannot be null as we have sorted them just before disconnecting them.
+            let node = self.nodes.disconnected(id, true);
+
+            let data = json!({
+                "node":node.unwrap(),
+                "unexpected":true
+            });
+            let _ = self
+                .broker_sender
+                .send(ServiceBrokerMessage::BroadcastLocal {
+                    event_name: NodeEvents::Disconnected.to_string(),
+                    data,
+                    opts: Value::Null,
+                });
+        });
+    }
+
+    pub(crate) async fn check_offline_nodes(&mut self, clean_offline_nodes_timeout: Duration) {
+        let now = utils::process_uptime();
+        let mut to_be_removed = Vec::new();
+        for node in self.nodes.nodes.values_mut() {
+            if node.local || node.available {
+                continue;
+            }
+            match node.last_heartbeat_time {
+                Some(last) => {
+                    if (now - last) > clean_offline_nodes_timeout {
+                        to_be_removed.push(node.id.clone());
+                    }
+                }
+                None => {
+                    // Not recieved the first
+                    node.last_heartbeat_time = Some(now.clone());
+                    continue;
+                }
+            }
+        }
+        to_be_removed.iter().for_each(|id| {
+            warn!("Removing offline {} node from registry because it hasn't submitted heartbeat signal for 10 minutes.", id);
+            self.nodes.delete(id);
+
+        });
     }
     fn get_event_list(&self) -> Vec<&EventEndpoint> {
         todo!()

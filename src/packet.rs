@@ -1,17 +1,17 @@
 use crate::{
     errors::PacketError,
-    registry::{Client, Payload},
+    registry::{Client, Payload, ServiceItemInfo},
     HandlerResult,
 };
 use anyhow::bail;
-use serde::{Serialize, Deserialize};
-use serde_json::*;
+use serde::{Deserialize, Serialize};
 use serde_bytes::*;
+use serde_json::*;
 use std::{any, fmt::Display};
 
 #[derive(Debug, Clone, Serialize)]
 #[repr(usize)]
-pub(crate)enum DataType {
+pub(crate) enum DataType {
     Undefined = 0,
     Null = 1,
     Json = 2,
@@ -19,7 +19,7 @@ pub(crate)enum DataType {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub(crate)enum PacketType {
+pub(crate) enum PacketType {
     Unknown,
     Event,
     Request,
@@ -42,7 +42,26 @@ impl Display for PacketType {
         write!(f, "{}", self)
     }
 }
-
+impl From<&str> for PacketType {
+    fn from(val: &str) -> Self {
+        match val {
+            "EVENT" => PacketType::Event,
+            "REQ" => PacketType::Request,
+            "RES" => PacketType::Response,
+            "DISCOVER" => PacketType::Discover,
+            "INFO" => PacketType::Info,
+            "DISCONNECT" => PacketType::Disconnect,
+            "HEARTBEAT" => PacketType::Heartbeat,
+            "PING" => PacketType::Ping,
+            " PONG" => PacketType::Pongs,
+            "GOSSIP_REQ" => PacketType::GossipReq,
+            "GOSSIP_RES" => PacketType::GossipRes,
+            "GOSSIP_HELLO" => PacketType::GossipHello,
+            "NULL" => PacketType::Null,
+            _=>PacketType::Unknown
+        }
+    }
+}
 impl From<PacketType> for String {
     fn from(packet: PacketType) -> Self {
         match packet {
@@ -71,9 +90,10 @@ impl PartialEq for PacketType {
 }
 
 pub(crate) trait PacketPayload
-where Self:Sized
+where
+    Self: Sized,
 {
-    fn tipe(&self)->PacketType;
+    fn tipe(&self) -> PacketType;
     fn event_payload(self) -> anyhow::Result<PayloadEvent> {
         bail!("Not an event payload")
     }
@@ -112,8 +132,7 @@ impl<P: PacketPayload> Packet<P> {
 }
 
 impl PacketPayload for PayloadRequest {
-
-    fn tipe(&self)->PacketType {
+    fn tipe(&self) -> PacketType {
         PacketType::Request
     }
     fn request_paylaod(self) -> PayloadRequest {
@@ -122,7 +141,6 @@ impl PacketPayload for PayloadRequest {
     fn sender(&self) -> &str {
         &self.sender
     }
-
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -151,14 +169,14 @@ impl PacketPayload for PayloadResponse {
         &self.sender
     }
 }
-#[derive(Debug, Serialize  , Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 
 pub(crate) struct PayloadResponse {
     pub(crate) ver: String,
     pub(crate) sender: String,
     pub(crate) id: String,
     pub(crate) success: bool,
-    #[serde(with="serde_bytes")]
+    #[serde(with = "serde_bytes")]
     pub(crate) data: Vec<u8>,
     pub(crate) error: String,
     pub(crate) meta: String,
@@ -254,7 +272,7 @@ impl PacketPayload for PayloadNull {
 #[derive(Debug, Clone, Serialize)]
 pub(crate) struct PayloadInfo {
     pub(crate) sender: String,
-    pub(crate) services: Vec<String>,
+    pub(crate) services: Vec<ServiceItemInfo>,
     pub(crate) config: String,
     pub(crate) ip_list: Vec<String>,
     pub(crate) hostame: String,

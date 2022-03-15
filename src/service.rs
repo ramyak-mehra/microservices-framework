@@ -8,16 +8,16 @@ use log::info;
 use tokio::sync::mpsc::UnboundedSender;
 
 #[derive(Clone, Debug)]
-pub(crate)struct Service {
-    pub(crate)name: String,
-    pub(crate)full_name: String,
-    pub(crate)version: String,
+pub(crate) struct Service {
+    pub(crate) name: String,
+    pub(crate) full_name: String,
+    pub(crate) version: String,
     pub(crate) settings: HashMap<String, String>,
     pub(crate) schema: Schema,
     pub(crate) original_schema: Option<Schema>,
     pub(crate) metadata: HashMap<String, String>,
-    pub(crate)actions: Option<Vec<Action>>,
-    pub(crate)events: Option<HashMap<String, Event>>,
+    pub(crate) actions: Option<Vec<Action>>,
+    pub(crate) events: Option<HashMap<String, Event>>,
     pub(crate) broker_sender: UnboundedSender<ServiceBrokerMessage>,
 }
 
@@ -36,7 +36,7 @@ impl PartialEq for Service {
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
-pub(crate)struct Schema {
+pub(crate) struct Schema {
     pub(crate) mixins: Option<Vec<SchemaMixins>>,
     pub(crate) actions: Option<Vec<SchemaActions>>,
     pub(crate) events: Option<Vec<SchemaEvents>>,
@@ -52,27 +52,28 @@ pub(crate)struct Schema {
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
-pub(crate)struct SchemaMixins {}
+pub(crate) struct SchemaMixins {}
 
 #[derive(PartialEq, Eq, Clone, Debug)]
-pub(crate)struct SchemaActions {
+pub(crate) struct SchemaActions {
     name: String,
     handler: fn(),
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
-pub(crate)struct SchemaEvents {}
+pub(crate) struct SchemaEvents {}
 #[derive(PartialEq, Eq, Clone, Debug)]
-pub(crate)enum SchemaMerged {
+pub(crate) enum SchemaMerged {
     MergedFn(fn()),
     MergedFnVec(Vec<fn()>),
 }
 #[derive(PartialEq, Debug)]
-pub(crate)struct ServiceSpec {
+pub(crate) struct ServiceSpec {
     pub(crate) name: String,
     pub(crate) version: String,
     pub(crate) full_name: String,
     settings: HashMap<String, String>,
+    pub(crate) dependencies: Option<Vec<String>>,
     /*
     pub(crate)metadata
     pub(crate)*/
@@ -90,6 +91,7 @@ impl Service {
             version: self.version.clone(),
             actions: self.actions.clone(),
             events: None,
+            dependencies: self.schema.dependencies.clone(),
         }
     }
 
@@ -132,7 +134,7 @@ impl Service {
         self.settings.clone()
     }
 
-    pub(crate)async fn init(&self) {
+    pub(crate) async fn init(&self) {
         info!("Service {} is createing....", self.full_name);
         if let Some(created) = self.schema.created {
             created();
@@ -145,7 +147,7 @@ impl Service {
         //  todo!("call broker middlware")
     }
 
-    pub(crate)async fn start(&self) {
+    pub(crate) async fn start(&self) {
         info!("Service {} is starting...", self.full_name);
 
         if let Some(dependencies) = &self.schema.dependencies {
@@ -180,7 +182,7 @@ impl Service {
         //todo!("call service started middleware")
     }
 
-    pub(crate)async fn stop(&self) {
+    pub(crate) async fn stop(&self) {
         info!("Service {} is stopping...", self.full_name);
 
         if let Some(stopped) = self.schema.stopped {
@@ -226,7 +228,7 @@ impl Service {
             });
     }
 
-    pub(crate)fn get_versioned_full_name(name: &str, version: Option<&String>) -> String {
+    pub(crate) fn get_versioned_full_name(name: &str, version: Option<&String>) -> String {
         let mut name = name.to_string();
         if let Some(v) = version {
             name = format!("{}.{}", v, name);
@@ -334,8 +336,8 @@ mod tests {
             settings: service.settings.clone(),
             actions: None,
             events: None,
+            dependencies: service.schema.dependencies.clone(),
         };
-
         let service_spec_gen = service.get_service_spec();
         assert_eq!(service_spec_gen, service_spec)
     }

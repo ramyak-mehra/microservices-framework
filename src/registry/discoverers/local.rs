@@ -1,6 +1,6 @@
-use crate::{transporter::nats::NatsTransporter, broker_delegate::BrokerDelegate};
-
 use super::*;
+use crate::{broker_delegate::BrokerDelegate, transporter::nats::NatsTransporter};
+use tokio_js_set_interval::{_set_interval_spawn, set_interval};
 
 struct LocalDiscoverer {
     transit: Transit<NatsTransporter>,
@@ -8,10 +8,22 @@ struct LocalDiscoverer {
     opts: DiscovererOpts,
     broker_sender: mpsc::UnboundedSender<ServiceBrokerMessage>,
     broker: Arc<BrokerDelegate>,
+    discoverer_reciever: mpsc::UnboundedReceiver<DiscovererMessage>,
+    discoverer_sender: mpsc::UnboundedSender<DiscovererMessage>,
+    heartbeat_timer_id: Option<u64>,
+    check_nodes_timer_id: Option<u64>,
+    offline_timer_id: Option<u64>,
 }
 
 impl LocalDiscoverer {
-    fn new(registry: Arc<RwLock<Registry>> , ) {}
+    fn new(registry: Arc<RwLock<Registry>>) {}
+    async fn start_heatbeat_timers(&mut self) {
+        self.stop_heartbeat_timers().await;
+        if self.opts().heartbeat_interval > Duration::from_secs(0) {
+            // Add random delay.
+            let time = self.opts.heartbeat_interval;
+        }
+    }
 }
 #[async_trait]
 impl Discoverer<NatsTransporter> for LocalDiscoverer {
@@ -29,6 +41,18 @@ impl Discoverer<NatsTransporter> for LocalDiscoverer {
 
     fn opts(&self) -> &DiscovererOpts {
         &self.opts
+    }
+
+    fn transit(&self) -> &Transit<NatsTransporter> {
+        &self.transit
+    }
+
+    fn set_heartbeat_interval(&mut self, interval: usize) {
+        todo!()
+    }
+
+    fn discoverer_sender(&self) -> mpsc::UnboundedSender<DiscovererMessage> {
+        self.discoverer_sender.clone()
     }
 
     fn init(&mut self, registry: Arc<RwLock<Registry>>) {
@@ -58,7 +82,31 @@ impl Discoverer<NatsTransporter> for LocalDiscoverer {
         }
     }
 
-    fn transit(&self) -> &Transit<NatsTransporter> {
-        &self.transit
+    async fn update_timer_id(&mut self, id: u64, timers_id: TimersId) {
+        match timers_id {
+            TimersId::Heartbeat => self.heartbeat_timer_id = Some(id),
+            TimersId::CheckNodes => self.check_nodes_timer_id = Some(id),
+            TimersId::Offline => self.offline_timer_id = Some(id),
+        }
+    }
+
+    async fn set_timer_id_null(&mut self, timers_id: TimersId) {
+        match timers_id {
+            TimersId::Heartbeat => self.heartbeat_timer_id = None,
+            TimersId::CheckNodes => self.check_nodes_timer_id = None,
+            TimersId::Offline => self.offline_timer_id = None,
+        }
+    }
+
+    fn get_timer_id(&self, timers_id: TimersId) -> &Option<u64> {
+        match timers_id {
+            TimersId::Heartbeat => &self.heartbeat_timer_id,
+            TimersId::CheckNodes => &self.check_nodes_timer_id,
+            TimersId::Offline => &self.offline_timer_id,
+        }
+    }
+
+    fn discoverer_reciever(&mut self) -> &mut mpsc::UnboundedReceiver<DiscovererMessage> {
+        &mut self.discoverer_reciever
     }
 }

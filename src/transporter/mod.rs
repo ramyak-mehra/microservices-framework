@@ -30,7 +30,7 @@ pub(crate) trait Transporter {
 
     async fn make_subsciptions(&self, topics: Vec<Topic>) -> anyhow::Result<()> {
         for topic in topics {
-            self.subscibe(topic).await?;
+            self.subscibe(topic.cmd , topic.node_id).await?;
         }
         Ok(())
     }
@@ -49,7 +49,7 @@ pub(crate) trait Transporter {
         self.incoming_message(cmd, data).await;
     }
 
-    async fn subscibe(&self, topic: Topic) -> anyhow::Result<()>;
+   async fn subscibe(&self, cmd: String , node_id: Option<String>) -> anyhow::Result<()>;
     async fn subscibe_balanced_request(&self, action: &str) -> anyhow::Result<()>;
     async fn subscibe_balanced_event(&self) -> anyhow::Result<()>;
     async fn unsubscribe_from_balanced_commands(&self);

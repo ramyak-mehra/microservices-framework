@@ -8,11 +8,12 @@ use serde_json::{json, Value};
 
 use super::*;
 use crate::{
+    broker_delegate::BrokerDelegate,
     constants::*,
     context::{Context, EventType},
     errors::{PacketError, ServiceBrokerError},
-    registry::{Action, EndpointTrait, EventEndpoint, Node, Payload, node::NodeRawInfo},
-    utils, HandlerResult, broker_delegate::BrokerDelegate,
+    registry::{node::NodeRawInfo, Action, EndpointTrait, EventEndpoint, Node, Payload},
+    utils, HandlerResult,
 };
 use crate::{ServiceBroker, ServiceBrokerMessage};
 use anyhow::{self, bail};
@@ -34,9 +35,9 @@ struct Request {
 }
 
 pub(crate) struct Transit<T: Transporter + Send + Sync> {
-    broker:Arc<BrokerDelegate>,
+    broker: Arc<BrokerDelegate>,
     broker_sender: mpsc::UnboundedSender<ServiceBrokerMessage>,
-    pub(crate)tx: T,
+    pub(crate) tx: T,
     opts: TransitOptions,
     node_id: String,
     instance_id: String,
@@ -46,24 +47,23 @@ pub(crate) struct Transit<T: Transporter + Send + Sync> {
     conntected: bool,
     disconnecting: bool,
     is_ready: bool,
-    broker_started:bool,
+    broker_started: bool,
     pending_requests: HashMap<String, Request>,
 }
 
 impl<T: Transporter + Send + Sync> Transit<T> {
     fn new(
-        broker:Arc<BrokerDelegate>,
+        broker: Arc<BrokerDelegate>,
         opts: TransitOptions,
         transporter: T,
         broker_sender: mpsc::UnboundedSender<ServiceBrokerMessage>,
     ) -> Self {
-    
         let node_id = broker.node_id().to_owned();
         let instance_id = broker.instance_id().to_owned();
 
         Self {
             broker,
-            broker_started:false,
+            broker_started: false,
             tx: transporter,
             opts,
             node_id,
@@ -112,7 +112,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
         }
     }
     ///Send DISCONNECT to remote nodes
-    pub(crate)async fn send_disconnect_packet(&self) {
+    pub(crate) async fn send_disconnect_packet(&self) {
         todo!("after publish")
     }
     async fn make_subsciptions(&self) {
@@ -173,10 +173,9 @@ impl<T: Transporter + Send + Sync> Transit<T> {
         let mut ctx = Context::new(self.broker.get_broker(), "".to_string());
         ctx.id = payload.id;
         ctx.event_name = Some(payload.event);
-       
 
         ctx.event_groups = Some(payload.groups);
-        ctx.set_params(payload.data);;
+        ctx.set_params(payload.data);
         ctx.event_type = if payload.broadcast {
             EventType::Broadcast
         } else {
@@ -240,7 +239,8 @@ impl<T: Transporter + Send + Sync> Transit<T> {
 
         let endpoint = self
             .broker
-            .get_local_action_endpoint(&payload.action, &ctx).await?;
+            .get_local_action_endpoint(&payload.action, &ctx)
+            .await?;
         let endpoint = endpoint.clone();
         ctx.set_endpoint(&endpoint, Some(action_name), None);
         let params = payload.params;
@@ -249,7 +249,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
         Ok(())
     }
 
-    pub(crate)async fn response_handler(&mut self, packet: PayloadResponse) {
+    pub(crate) async fn response_handler(&mut self, packet: PayloadResponse) {
         let id = packet.id;
         let req = self.pending_requests.get_mut(&id);
         match req {
@@ -335,7 +335,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
 
     ///Send an event to a remote node.
     /// The event is balanced by transporter
-    pub(crate)async fn send_event(
+    pub(crate) async fn send_event(
         &self,
         ctx: Context,
         endpoint: Option<EventEndpoint>,
@@ -425,7 +425,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
         }
     }
 
-   pub(crate)async fn discover_nodes(&self) {
+    pub(crate) async fn discover_nodes(&self) {
         let packet = Packet::new(P::Discover, None, PayloadNull {});
         let result = self.publish(packet).await;
         if result.is_err() {
@@ -434,7 +434,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
             self.publish_error(err, FAILED_NODES_DISCOVERY, message);
         }
     }
-   pub(crate)async fn discover_node(&self, node_id: String) {
+    pub(crate) async fn discover_node(&self, node_id: String) {
         let packet = Packet::new(P::Discover, Some(node_id.clone()), PayloadNull {});
         let result = self.publish(packet).await;
         if result.is_err() {
@@ -446,7 +446,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
             self.publish_error(err, FAILED_NODES_DISCOVERY, message);
         }
     }
-    pub(crate)async fn send_node_info(&self, info: NodeRawInfo, node_id: Option<String>) {
+    pub(crate) async fn send_node_info(&self, info: NodeRawInfo, node_id: Option<String>) {
         if !self.conntected || !self.is_ready {
             return;
         }
@@ -531,7 +531,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
         Ok(())
     }
 
-    pub(crate)async fn send_heartbeat(&self, local_node_cpu: u32) {
+    pub(crate) async fn send_heartbeat(&self, local_node_cpu: u32) {
         let payload = PayloadHeartbeat {
             cpu: local_node_cpu,
             sender: self.node_id.clone(),
@@ -546,12 +546,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
     }
 
     async fn subscribe(&self, topic: String, node_id: String) -> anyhow::Result<()> {
-        self.tx
-            .subscibe(Topic {
-                node_id: Some(node_id),
-                cmd: topic,
-            })
-            .await
+        self.tx.subscibe(topic,  Some(node_id)).await
     }
 
     async fn publish<P: PacketPayload>(&self, packet: Packet<P>) -> anyhow::Result<()> {
@@ -606,4 +601,7 @@ enum TransporterEvents {
     Error,
     #[display(fmt = "$node.pong")]
     Pong,
+}
+pub(crate) enum TransitMessage {
+    RecievedMessage { cmd: PacketType, data: Vec<u8> },
 }

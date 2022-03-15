@@ -1,6 +1,9 @@
 use lazy_static::lazy_static;
+use process_uptime::ProcessUptime;
 use regex::Regex;
-use std::{borrow::Cow, collections::HashMap, ops::Index};
+use std::time::Duration;
+use std::{borrow::Cow, collections::HashMap, future::Future, ops::Index};
+use tokio::time;
 use uuid::Uuid;
 
 pub(crate) fn generate_uuid() -> String {
@@ -75,4 +78,29 @@ pub(crate) fn match_str(text: &str, pattern: &str) -> bool {
     //     pattern =  &("//".to_owned() + &original_pattern);
     // }
     // pattern = &pattern.replace(r"/\?/g", ".");
+}
+pub(crate) fn process_uptime() -> Duration {
+    ProcessUptime::new().unwrap().uptime
+}
+pub(crate) fn set_interval<F, Fut>(mut f: F, dur: Duration)
+where
+    F: Send + 'static + Fn() -> Fut,
+    Fut: Future<Output = ()> + Send + 'static,
+{
+    // Create stream of intervals.
+    let mut interval = time::interval(dur);
+
+    tokio::spawn(async move {
+        // Skip the first tick at 0ms.
+        interval.tick().await;
+        loop {
+            // Wait until next tick.
+            interval.tick().await;
+            // Spawn a task for this tick.
+            tokio::spawn(f());
+        }
+    });
+}
+pub(crate) async fn get_cpu_usage() -> u32 {
+    todo!("get cpu usage")
 }
