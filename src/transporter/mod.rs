@@ -87,7 +87,7 @@ pub(crate) trait Transporter {
         }
         let payload = packet.payload;
         if packet.tipe == PT::Event && packet.target.is_none() && payload.tipe() == PT::Event {
-            let payload = payload.event_payload()?;
+            let payload = payload.event_payload();
 
             let groups = payload.groups.clone();
             // If the packet contains groups, we don't send the packet to

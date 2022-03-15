@@ -18,3 +18,4 @@ pub(crate)use registry::Registry;
 pub(crate)use service::Service;
 
 const INTERNAL_PREFIX: char = '$';
+type BrokerSender = tokio::sync::mpsc::UnboundedSender<ServiceBrokerMessage>;

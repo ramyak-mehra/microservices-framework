@@ -629,7 +629,7 @@ mod tests {
     use crate::{
         registry::{Action, Visibility},
         service::{Schema, SchemaMerged},
-        Registry, Service,
+        Registry, Service, BrokerSender,
     };
     use tokio::{sync::mpsc, task};
 
@@ -656,7 +656,7 @@ mod tests {
 
     fn get_test_broker(
         recv: mpsc::UnboundedReceiver<ServiceBrokerMessage>,
-        sender: mpsc::UnboundedSender<ServiceBrokerMessage>,
+        sender: BrokerSender,
         registry: Arc<RwLock<Registry>>,
         broker_options: Arc<BrokerOptions>,
         instance: String,
@@ -707,7 +707,7 @@ mod tests {
         schema: Option<Schema>,
         settings: Option<HashMap<String, String>>,
         actions: Option<Vec<Action>>,
-        broker_sender: Option<mpsc::UnboundedSender<ServiceBrokerMessage>>,
+        broker_sender: Option<BrokerSender>,
     ) -> Service {
         let name = "test_service".to_string();
         let version = "1.0".to_string();

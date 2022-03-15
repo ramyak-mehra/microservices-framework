@@ -10,7 +10,7 @@ use std::time::Duration;
 pub(crate) use tokio::sync::{mpsc, RwLock};
 use tokio_js_set_interval::{_set_interval_spawn, clear_interval};
 
-use crate::{broker_delegate::BrokerDelegate, utils};
+use crate::{broker_delegate::BrokerDelegate, utils, BrokerSender};
 pub(crate) use crate::{
     packet::{PayloadHeartbeat, PayloadInfo},
     transporter::{Transit, Transporter},
@@ -24,7 +24,7 @@ where
 {
     fn registry(&self) -> &Arc<RwLock<Registry>>;
 
-    fn broker_sender(&self) -> &mpsc::UnboundedSender<ServiceBrokerMessage>;
+    fn broker_sender(&self) -> &BrokerSender;
 
     fn broker(&self) -> &Arc<BrokerDelegate>;
 
@@ -163,7 +163,8 @@ where
             return;
         }
         let cpu = self.local_node_cpu().await;
-        self.transit().send_heartbeat(cpu).await;
+        //TODO: figure out how to get T of transit.(probably use a queue)
+        // send_heartbeat(cpu).await;
     }
 
     ///Discover a new or old node by node_id.

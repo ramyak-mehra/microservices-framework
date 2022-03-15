@@ -13,7 +13,7 @@ use crate::{
     context::{Context, EventType},
     errors::{PacketError, ServiceBrokerError},
     registry::{node::NodeRawInfo, Action, EndpointTrait, EventEndpoint, Node, Payload},
-    utils, HandlerResult,
+    utils, BrokerSender, HandlerResult,
 };
 use crate::{ServiceBroker, ServiceBrokerMessage};
 use anyhow::{self, bail};
@@ -33,10 +33,10 @@ struct Request {
     ctx: Context,
     resolve: fn(HandlerResult),
 }
-
+type PendingRequests = Arc<RwLock<HashMap<String, Request>>>;
 pub(crate) struct Transit<T: Transporter + Send + Sync> {
     broker: Arc<BrokerDelegate>,
-    broker_sender: mpsc::UnboundedSender<ServiceBrokerMessage>,
+    broker_sender: BrokerSender,
     pub(crate) tx: T,
     opts: TransitOptions,
     node_id: String,
@@ -48,7 +48,7 @@ pub(crate) struct Transit<T: Transporter + Send + Sync> {
     disconnecting: bool,
     is_ready: bool,
     broker_started: bool,
-    pending_requests: RwLock<HashMap<String, Request>>,
+    pending_requests: PendingRequests,
 }
 
 impl<T: Transporter + Send + Sync> Transit<T> {
@@ -56,7 +56,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
         broker: Arc<BrokerDelegate>,
         opts: TransitOptions,
         transporter: T,
-        broker_sender: mpsc::UnboundedSender<ServiceBrokerMessage>,
+        broker_sender: BrokerSender,
     ) -> Self {
         let node_id = broker.node_id().to_owned();
         let instance_id = broker.instance_id().to_owned();
@@ -72,7 +72,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
             conntected: false,
             disconnecting: false,
             is_ready: false,
-            pending_requests: RwLock::new(HashMap::new()),
+            pending_requests: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -103,7 +103,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
         }
     }
 
-    fn read(&self) {
+    fn read(&mut self) {
         if self.conntected {
             self.is_ready = true;
             //TODO:
@@ -117,77 +117,112 @@ impl<T: Transporter + Send + Sync> Transit<T> {
     }
     async fn make_subsciptions(&self) {
         let topics = vec![
-            self.packet_topic(P::Event),
-            self.packet_topic(P::Request),
-            self.packet_topic(P::Response),
+            packet_topic(&self.node_id, P::Event),
+            packet_topic(&self.node_id, P::Request),
+            packet_topic(&self.node_id, P::Response),
             //Discover handler
-            self.packet_topic(P::Discover),
-            self.packet_topic_witout_node_id(P::Discover),
+            packet_topic(&self.node_id, P::Discover),
+            packet_topic_witout_node_id(P::Discover),
             //NodeInfo handler
-            self.packet_topic(P::Info), //Broadcast INFO. If a new node connected.
-            self.packet_topic_witout_node_id(P::Info), //Resposne INFO to DISCOVER packet.
+            packet_topic(&self.node_id, P::Info), //Broadcast INFO. If a new node connected.
+            packet_topic_witout_node_id(P::Info), //Resposne INFO to DISCOVER packet.
             // Disconnect handler
-            self.packet_topic_witout_node_id(P::Disconnect),
+            packet_topic_witout_node_id(P::Disconnect),
             //Hearbeat handler
-            self.packet_topic_witout_node_id(P::Heartbeat),
+            packet_topic_witout_node_id(P::Heartbeat),
             //Ping handler
-            self.packet_topic_witout_node_id(P::Ping), //Broadcasted
-            self.packet_topic(P::Ping),                //Targeted
+            packet_topic_witout_node_id(P::Ping), //Broadcasted
+            packet_topic(&self.node_id, P::Ping), //Targeted
             //Pong handler
-            self.packet_topic(P::Pongs),
+            packet_topic(&self.node_id, P::Pongs),
         ];
         self.tx.make_subsciptions(topics).await;
         todo!("return from the make subscriptions");
     }
 
-    async fn message_handler<P: PacketPayload>(&self, cmd: PacketType, packet: Packet<P>) {
+    async fn message_handler<P:'static +  PacketPayload + Send>(&self, cmd: PacketType, packet: Packet<P>) {
         let payload = packet.payload;
-        //TODO: check for empty payload i.e PayloadNull
-        // TODO: Check protocol version
+        let broker_sender = self.broker_sender.clone();
+        let node_id = self.node_id.to_owned();
+        let broker = Arc::clone(&self.broker);
+        let broker_started = self.broker_started;
+        let pending_requests = Arc::clone(&self.pending_requests);
+        let instance_id = self.instance_id.to_owned();
+        tokio::spawn(async move {
+            //TODO: check for empty payload i.e PayloadNull
+            // TODO: Check protocol version
 
-        if payload.sender() == self.node_id {
-            if cmd == PacketType::Info && payload.instance_id() != self.instance_id {
-                panic!("Service Broker has detected a nodeID conflict, use unique nodeIDS. ServiceBroker has stopped.")
+            if payload.sender() == node_id {
+                if cmd == PacketType::Info && payload.instance_id() != instance_id {
+                    panic!("Service Broker has detected a nodeID conflict, use unique nodeIDS. ServiceBroker has stopped.")
+                }
+                if cmd != PacketType::Event
+                    && cmd != PacketType::Request
+                    && cmd != PacketType::Response
+                {
+                    return;
+                }
             }
-            if cmd != PacketType::Event && cmd != PacketType::Request && cmd != PacketType::Response
-            {
-                return;
+
+            match cmd {
+                PacketType::Unknown => todo!(),
+                PacketType::Event => {
+                    let result = Transit::<T>::event_handler(
+                        broker_sender,
+                        payload.event_payload(),
+                        broker,
+                        broker_started,
+                    )
+                    .await;
+                }
+                PacketType::Request => {
+                    let result = Transit::<T>::request_handler(
+                        node_id,
+                        payload.request_paylaod(),
+                        broker,
+                        broker_started,
+                    )
+                    .await;
+                }
+                PacketType::Response => {
+                    let result = Transit::<T>::response_handler(
+                        payload.response_payload(),
+                        pending_requests,
+                    )
+                    .await;
+                }
+                PacketType::Discover => todo!(),
+                PacketType::Info => todo!(),
+                PacketType::Disconnect => {}
+                PacketType::Heartbeat => todo!(),
+                PacketType::Ping => {
+                    let result =
+                        Transit::<T>::send_pong(broker_sender, node_id, payload.ping_payload())
+                            .await;
+                }
+                PacketType::Pongs => {
+                    let result =
+                        Transit::<T>::process_pong(broker_sender, payload.pong_payload()).await;
+                }
+                PacketType::GossipReq => todo!(),
+                PacketType::GossipRes => todo!(),
+                PacketType::GossipHello => todo!(),
+                PacketType::Null => todo!(),
             }
-        }
-        match cmd {
-            PacketType::Unknown => todo!(),
-            PacketType::Event => {
-                let result = self.event_handler(payload.event_payload()).await;
-            }
-            PacketType::Request => {
-                let result = self.request_handler(payload.request_paylaod()).await;
-            }
-            PacketType::Response => {
-                let result = self.response_handler(payload.response_payload()).await;
-            },
-            PacketType::Discover => todo!(),
-            PacketType::Info => todo!(),
-            PacketType::Disconnect => {}
-            PacketType::Heartbeat => todo!(),
-            PacketType::Ping => {
-                let result = self.send_pong(payload.ping_payload()).await;
-            }
-            PacketType::Pongs => {
-                let result = self.process_pong(payload.pong_payload()).await;
-            }
-            PacketType::GossipReq => todo!(),
-            PacketType::GossipRes => todo!(),
-            PacketType::GossipHello => todo!(),
-            PacketType::Null => todo!(),
-        }
+        });
     }
 
-    async fn event_handler(&self, payload: PayloadEvent) -> anyhow::Result<bool> {
+    async fn event_handler(
+        broker_sender: BrokerSender,
+        payload: PayloadEvent,
+        broker: Arc<BrokerDelegate>,
+        broker_started: bool,
+    ) -> anyhow::Result<bool> {
         debug!(
             "Event {} received from {} node {:?}",
             payload.event, payload.sender, payload.groups
         );
-        if !self.broker_started {
+        if !broker_started {
             warn!(
                 "Incoming {} event from {} node is dropped, because broker is stopped",
                 payload.event, payload.sender
@@ -195,7 +230,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
             return Ok(false);
         }
         //TODO: handle service name not present
-        let mut ctx = Context::new(self.broker.get_broker(), "".to_string());
+        let mut ctx = Context::new(broker.get_broker(), "".to_string());
         ctx.id = payload.id;
         ctx.event_name = Some(payload.event);
 
@@ -214,12 +249,10 @@ impl<T: Transporter + Send + Sync> Transit<T> {
         ctx.caller = Some(payload.caller);
         ctx.node_id = Some(payload.sender);
         let (send, recv) = oneshot::channel::<bool>();
-        let send_res = self
-            .broker_sender
-            .send(ServiceBrokerMessage::EmitLocalServices {
-                ctx,
-                result_channel: send,
-            });
+        let send_res = broker_sender.send(ServiceBrokerMessage::EmitLocalServices {
+            ctx,
+            result_channel: send,
+        });
         if send_res.is_err() {
             return Ok(false);
         }
@@ -229,26 +262,31 @@ impl<T: Transporter + Send + Sync> Transit<T> {
         }
     }
 
-    async fn request_handler(&self, payload: PayloadRequest) -> anyhow::Result<()> {
+    async fn request_handler(
+        node_id: String,
+        payload: PayloadRequest,
+        broker: Arc<BrokerDelegate>,
+        broker_started: bool,
+    ) -> anyhow::Result<()> {
         debug!(
             "<= Request '{}' received from '{}' node.",
             payload.action, payload.sender
         );
 
-        if !self.broker_started {
+        if !broker_started {
             warn!(
                 "Incoming '{}' request from '{}' node is dropped because broker is stopped.",
                 payload.action, payload.sender
             );
             bail!(ServiceBrokerError::ServiceNotAvailable {
                 action_name: payload.action,
-                node_id: self.node_id.clone()
+                node_id: node_id
             })
         }
         //TODO: check for stream dont't whats that for now
         let action_name = payload.action.clone();
         let service = utils::service_from_action(&action_name);
-        let mut ctx = Context::new(self.broker.get_broker(), service);
+        let mut ctx = Context::new(broker.get_broker(), service);
         ctx.id = payload.id;
         //TODO: ctx.setParams
         ctx.parent_id = payload.parent_id;
@@ -262,8 +300,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
             ctx.options.timeout = payload.timeout
         }
 
-        let endpoint = self
-            .broker
+        let endpoint = broker
             .get_local_action_endpoint(&payload.action, &ctx)
             .await?;
         let endpoint = endpoint.clone();
@@ -274,10 +311,10 @@ impl<T: Transporter + Send + Sync> Transit<T> {
         Ok(())
     }
 
-    pub(crate) async fn response_handler(&self, payload: PayloadResponse) {
+    async fn response_handler(payload: PayloadResponse, pending_requests: PendingRequests) {
         let id = payload.id;
-        let mut pending_requests =self.pending_requests.write().await;
-        let req = pending_requests.get_mut(&id);
+        let mut _pending_requests = pending_requests.write().await;
+        let req = _pending_requests.get_mut(&id);
         match req {
             Some(req) => {
                 debug!(
@@ -286,7 +323,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
                 );
                 req.ctx.node_id = Some(payload.sender);
                 //TODO: merge meta
-                self.remove_pending_request(&id);
+                Transit::<T>::remove_pending_request(pending_requests.clone(), &id);
                 if !payload.success {
                     //TODO:Call error
                 } else {
@@ -301,18 +338,31 @@ impl<T: Transporter + Send + Sync> Transit<T> {
         }
     }
 
-    async fn request(&self, ctx: Context, resolve: fn(HandlerResult)) -> anyhow::Result<()> {
-        if self.opts.max_queue_size.is_some() {
-            if self.pending_requests.read().await.len() >= self.opts.max_queue_size.unwrap() {
+    async fn request(
+        broker_sender: BrokerSender,
+        node_id: String,
+        ctx: Context,
+        resolve: fn(HandlerResult),
+        pending_requests: PendingRequests,
+        opts: Arc<TransitOptions>,
+    ) -> anyhow::Result<()> {
+        if opts.max_queue_size.is_some() {
+            if pending_requests.read().await.len() >= opts.max_queue_size.unwrap() {
                 //TODO: Proper error handling
                 bail!("Max queue size reached")
             }
         }
-        self._send_request(ctx, resolve).await;
+        Transit::<T>::_send_request(broker_sender, node_id, ctx, resolve, pending_requests).await;
         Ok(())
     }
 
-    async fn _send_request(&self, ctx: Context, resolve: fn(HandlerResult)) {
+    async fn _send_request(
+        broker_sender: BrokerSender,
+        self_node_id: String,
+        ctx: Context,
+        resolve: fn(HandlerResult),
+        pending_requests: PendingRequests,
+    ) {
         //TODO: handle streaming response
         let node_id = ctx.node_id.to_owned();
         let action = ctx.action().to_string();
@@ -326,7 +376,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
         let id = ctx.id;
         let payload = PayloadRequest {
             action: action.clone(),
-            sender: self.node_id.clone(),
+            sender: self_node_id,
             id: id.clone(),
             parent_id: ctx.parent_id,
             request_id: ctx.request_id.unwrap(),
@@ -347,22 +397,25 @@ impl<T: Transporter + Send + Sync> Transit<T> {
         };
         debug!("=> Send {} request to {} node", action, node_name);
 
-        self.pending_requests.write().await.insert(id, request);
-        let result = self.publish(packet).await;
+        {
+            pending_requests.write().await.insert(id, request);
+        }
+        let result = Transit::<T>::publish(packet).await;
         if result.is_err() {
             let err = result.err().unwrap();
             let message = format!(
                 "Unable to send {} request to {} node. {} ",
                 action, node_name, err
             );
-            self.publish_error(err, FAILED_SEND_REQUEST_PACKET, message);
+            publish_error(broker_sender, err, FAILED_SEND_REQUEST_PACKET, message);
         }
     }
 
     ///Send an event to a remote node.
     /// The event is balanced by transporter
-    pub(crate) async fn send_event(
-        &self,
+    async fn send_event(
+        broker_sender: BrokerSender,
+        node_id: String,
         ctx: Context,
         endpoint: Option<EventEndpoint>,
         params: Payload,
@@ -407,25 +460,25 @@ impl<T: Transporter + Send + Sync> Transit<T> {
                 .expect("No request id present in the context"),
             caller: ctx.caller.expect("No caller present in the context"),
             needAck: ctx.need_ack,
-            sender: self.node_id.clone(),
+            sender: node_id,
         };
         let packet = Packet::new(P::Event, ctx.node_id, payload_event);
-        let result = self.publish(packet).await;
+        let result = Transit::<T>::publish(packet).await;
         if result.is_err() {
             let err = result.unwrap_err();
             let message = format!("Unable to send {} event to groups. {}", event_name, err);
-            self.publish_error(err, FAILED_SEND_EVENT_PACKET, message);
+            publish_error(broker_sender, err, FAILED_SEND_EVENT_PACKET, message);
         }
         Ok(())
     }
 
-    async fn remove_pending_request(&self, id: &str) {
-        self.pending_requests.write().await.remove(id);
+    async fn remove_pending_request(pending_requests: PendingRequests, id: &str) {
+        pending_requests.write().await.remove(id);
     }
 
-    async fn remove_pending_request_by_node(&self, node_id: &str) {
+    async fn remove_pending_request_by_node(pending_requests: PendingRequests, node_id: &str) {
         debug!("Remove pending requests of {} node.", node_id);
-        self.pending_requests.write().await.retain(|key, value| {
+        pending_requests.write().await.retain(|key, value| {
             if value.node_id.is_some() && value.node_id.as_ref().unwrap() == node_id {
                 //TODO: add the req.reject error
                 return false;
@@ -451,25 +504,25 @@ impl<T: Transporter + Send + Sync> Transit<T> {
         }
     }
 
-    pub(crate) async fn discover_nodes(&self) {
+    pub(crate) async fn discover_nodes(broker_sender: BrokerSender) {
         let packet = Packet::new(P::Discover, None, PayloadNull {});
-        let result = self.publish(packet).await;
+        let result = Transit::<T>::publish(packet).await;
         if result.is_err() {
             let err = result.unwrap_err();
             let message = format!("Unable to send DISCOVER packet. {}", err);
-            self.publish_error(err, FAILED_NODES_DISCOVERY, message);
+            publish_error(broker_sender, err, FAILED_NODES_DISCOVERY, message);
         }
     }
-    pub(crate) async fn discover_node(&self, node_id: String) {
+    pub(crate) async fn discover_node(broker_sender: BrokerSender, node_id: String) {
         let packet = Packet::new(P::Discover, Some(node_id.clone()), PayloadNull {});
-        let result = self.publish(packet).await;
+        let result = Transit::<T>::publish(packet).await;
         if result.is_err() {
             let err = result.unwrap_err();
             let message = format!(
                 "Unable to send DISCOVER packet to {} node. {}",
                 node_id, err
             );
-            self.publish_error(err, FAILED_NODES_DISCOVERY, message);
+            publish_error(broker_sender, err, FAILED_NODES_DISCOVERY, message);
         }
     }
     pub(crate) async fn send_node_info(&self, info: NodeRawInfo, node_id: Option<String>) {
@@ -490,20 +543,25 @@ impl<T: Transporter + Send + Sync> Transit<T> {
         let packet = Packet::new(P::Info, node_id, payload);
         todo!("")
     }
-    async fn send_ping(&self, node_id: Option<String>, id: Option<String>) {
+    async fn send_ping(
+        broker_sender: BrokerSender,
+        self_node_id: String,
+        node_id: Option<String>,
+        id: Option<String>,
+    ) {
         let id = match id {
             Some(id) => id,
             None => utils::generate_uuid(),
         };
         let data = json!({"time" :Local::now().to_rfc3339() , "id" : id  });
         let payload = PayloadPing {
-            sender: self.node_id.clone(),
+            sender: self_node_id,
             time: Local::now().to_rfc3339(),
             id,
         };
 
         let packet = Packet::new(P::Ping, node_id.clone(), payload);
-        let result = self.publish(packet).await;
+        let result = Transit::<T>::publish(packet).await;
         if result.is_err() {
             let err = result.unwrap_err();
             let node_id = match node_id {
@@ -511,63 +569,65 @@ impl<T: Transporter + Send + Sync> Transit<T> {
                 None => "".to_string(),
             };
             let message = format!("Unable to send PING packet to {} node. {}", node_id, err);
-            self.publish_error(err, FAILED_SEND_PING_PACKET, message);
+            publish_error(broker_sender, err, FAILED_SEND_PING_PACKET, message);
         }
     }
 
-    async fn send_pong(&self, payload: PayloadPing) -> anyhow::Result<()> {
+    async fn send_pong(
+        broker_sender: BrokerSender,
+        node_id: String,
+        payload: PayloadPing,
+    ) -> anyhow::Result<()> {
         let pong_payload = PayloadPong {
-            sender: self.node_id.clone(),
+            sender: node_id.to_string(),
             time: payload.time,
             arrived: Local::now().to_rfc3339(),
             id: payload.id,
         };
         let packet = Packet::new(P::Pongs, Some(payload.sender.clone()), pong_payload);
-        let result = self.publish(packet).await;
+        let result = Transit::<T>::publish(packet).await;
         if result.is_err() {
             let err = result.unwrap_err();
             let message = format!(
                 "Unable to send PONG packet to {} node. {}",
                 payload.sender, err
             );
-            self.publish_error(err, FAILED_SEND_PONG_PACKET, message);
+            publish_error(broker_sender, err, FAILED_SEND_PONG_PACKET, message);
         }
 
         Ok(())
     }
 
-    async fn process_pong(&self, payload: PayloadPong) -> anyhow::Result<()> {
+    async fn process_pong(broker_sender: BrokerSender, payload: PayloadPong) -> anyhow::Result<()> {
         let now = Local::now();
 
-        let time = self.extract_time_from_payload(&payload.time)?;
+        let time = extract_time_from_payload(&payload.time)?;
         let elapsed_time = now - time;
-        let arrived_time = self.extract_time_from_payload(&payload.arrived)?;
+        let arrived_time = extract_time_from_payload(&payload.arrived)?;
         let time_diff = (now - arrived_time - elapsed_time / 2).num_milliseconds();
         let elapsed_time = elapsed_time.num_milliseconds();
 
         let data = json!({"nodeID" : payload.sender ,"elapsedTime" :elapsed_time , "timeDiff":time_diff , "id": payload.id });
 
-        let _ = self
-            .broker_sender
-            .send(ServiceBrokerMessage::BroadcastLocal {
-                event_name: TransporterEvents::Pong.to_string(),
-                data,
-                opts: Value::Null,
-            });
+        let _ = broker_sender.send(ServiceBrokerMessage::BroadcastLocal {
+            event_name: TransporterEvents::Pong.to_string(),
+            data,
+            opts: Value::Null,
+        });
         Ok(())
     }
 
-    pub(crate) async fn send_heartbeat(&self, local_node_cpu: u32) {
+    async fn send_heartbeat(broker_sender: BrokerSender, node_id: String, local_node_cpu: u32) {
         let payload = PayloadHeartbeat {
             cpu: local_node_cpu,
-            sender: self.node_id.clone(),
+            sender: node_id,
         };
         let packet = Packet::new(P::Heartbeat, None, payload);
-        let result = self.publish(packet).await;
+        let result = Transit::<T>::publish::<PayloadHeartbeat>(packet).await;
         if result.is_err() {
             let error = result.unwrap_err();
             let message = format!("Unable to send HEARTBEAT packet. {}", error);
-            self.publish_error(error, FAILED_TO_SEND_HEARTBEAT, message);
+            publish_error(broker_sender, error, FAILED_TO_SEND_HEARTBEAT, message);
         }
     }
 
@@ -575,47 +635,8 @@ impl<T: Transporter + Send + Sync> Transit<T> {
         self.tx.subscibe(topic, Some(node_id)).await
     }
 
-    async fn publish<P: PacketPayload>(&self, packet: Packet<P>) -> anyhow::Result<()> {
+    async fn publish<P: PacketPayload>(packet: Packet<P>) -> anyhow::Result<()> {
         todo!()
-    }
-
-    fn packet_topic(&self, packet_type: PacketType) -> Topic {
-        Topic {
-            cmd: packet_type.into(),
-            node_id: Some(self.node_id.clone()),
-        }
-    }
-    fn packet_topic_witout_node_id(&self, packet_type: PacketType) -> Topic {
-        Topic {
-            cmd: packet_type.into(),
-            node_id: None,
-        }
-    }
-
-    fn publish_error(&self, error: anyhow::Error, tipe: &str, message: String) {
-        error!("{}", message);
-        let err = error.to_string();
-        let data = json!({
-        "error": err,
-        "module":"transit",
-        "type":tipe
-        }
-        );
-        let _ = self
-            .broker_sender
-            .send(ServiceBrokerMessage::BroadcastLocal {
-                event_name: TransporterEvents::Error.to_string(),
-                data,
-                opts: Value::Null,
-            });
-    }
-    fn extract_time_from_payload(&self, value: &str) -> anyhow::Result<DateTime<Local>> {
-        match DateTime::parse_from_rfc3339(value) {
-            Ok(time) => Ok(DateTime::from(time)),
-            Err(_) => bail!(PacketError::CannotParse(
-                "Cannot extract time from the packet.".to_string()
-            )),
-        }
     }
 }
 
@@ -630,4 +651,40 @@ enum TransporterEvents {
 }
 pub(crate) enum TransitMessage {
     RecievedMessage { cmd: PacketType, data: Vec<u8> },
+}
+fn packet_topic(node_id: &str, packet_type: PacketType) -> Topic {
+    Topic {
+        cmd: packet_type.into(),
+        node_id: Some(node_id.to_string()),
+    }
+}
+fn packet_topic_witout_node_id(packet_type: PacketType) -> Topic {
+    Topic {
+        cmd: packet_type.into(),
+        node_id: None,
+    }
+}
+
+fn publish_error(broker_sender: BrokerSender, error: anyhow::Error, tipe: &str, message: String) {
+    error!("{}", message);
+    let err = error.to_string();
+    let data = json!({
+    "error": err,
+    "module":"transit",
+    "type":tipe
+    }
+    );
+    let _ = broker_sender.send(ServiceBrokerMessage::BroadcastLocal {
+        event_name: TransporterEvents::Error.to_string(),
+        data,
+        opts: Value::Null,
+    });
+}
+fn extract_time_from_payload(value: &str) -> anyhow::Result<DateTime<Local>> {
+    match DateTime::parse_from_rfc3339(value) {
+        Ok(time) => Ok(DateTime::from(time)),
+        Err(_) => bail!(PacketError::CannotParse(
+            "Cannot extract time from the packet.".to_string()
+        )),
+    }
 }

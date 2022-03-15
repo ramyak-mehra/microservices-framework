@@ -1,12 +1,12 @@
 use super::*;
-use crate::{broker_delegate::BrokerDelegate, transporter::nats::NatsTransporter};
+use crate::{broker_delegate::BrokerDelegate, transporter::nats::NatsTransporter, BrokerSender};
 use tokio_js_set_interval::{_set_interval_spawn, set_interval};
 
 struct LocalDiscoverer {
     transit: Transit<NatsTransporter>,
     registry: Arc<RwLock<Registry>>,
     opts: DiscovererOpts,
-    broker_sender: mpsc::UnboundedSender<ServiceBrokerMessage>,
+    broker_sender: BrokerSender,
     broker: Arc<BrokerDelegate>,
     discoverer_reciever: mpsc::UnboundedReceiver<DiscovererMessage>,
     discoverer_sender: mpsc::UnboundedSender<DiscovererMessage>,
@@ -31,7 +31,7 @@ impl Discoverer<NatsTransporter> for LocalDiscoverer {
         &self.registry
     }
 
-    fn broker_sender(&self) -> &mpsc::UnboundedSender<ServiceBrokerMessage> {
+    fn broker_sender(&self) -> &BrokerSender {
         &self.broker_sender
     }
 
@@ -60,11 +60,18 @@ impl Discoverer<NatsTransporter> for LocalDiscoverer {
     }
 
     async fn discover_node(&self, node_id: &str) {
-        self.transit.discover_node(node_id.to_string()).await;
+        let broker_sender = self.broker_sender.clone();
+        let node_id = node_id.to_string();
+        tokio::spawn(async move {
+            Transit::<NatsTransporter>::discover_node(broker_sender, node_id).await;
+        });
     }
 
     async fn discover_all_nodes(&self) {
-        self.transit.discover_nodes().await;
+        let broker_sender = self.broker_sender.clone();
+        tokio::spawn(async move {
+            Transit::<NatsTransporter>::discover_nodes(broker_sender).await;
+        });
     }
 
     async fn send_local_node_info(&self, node_id: Option<String>) {
