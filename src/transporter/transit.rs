@@ -18,7 +18,7 @@ use crate::{
 use crate::{ServiceBroker, ServiceBrokerMessage};
 use anyhow::{self, bail};
 use tokio::{
-    sync::{mpsc, oneshot},
+    sync::{mpsc, oneshot, RwLock},
     task,
 };
 
@@ -48,7 +48,7 @@ pub(crate) struct Transit<T: Transporter + Send + Sync> {
     disconnecting: bool,
     is_ready: bool,
     broker_started: bool,
-    pending_requests: HashMap<String, Request>,
+    pending_requests: RwLock<HashMap<String, Request>>,
 }
 
 impl<T: Transporter + Send + Sync> Transit<T> {
@@ -72,7 +72,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
             conntected: false,
             disconnecting: false,
             is_ready: false,
-            pending_requests: HashMap::new(),
+            pending_requests: RwLock::new(HashMap::new()),
         }
     }
 
@@ -81,7 +81,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
     }
 
     async fn connect(&mut self) {
-        info!("Connecting to the transported...");
+        info!("Connecting to the transporter...");
         todo!()
     }
     async fn disconnect(&mut self) {
@@ -103,7 +103,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
         }
     }
 
-    fn read(&mut self) {
+    fn read(&self) {
         if self.conntected {
             self.is_ready = true;
             //TODO:
@@ -154,7 +154,32 @@ impl<T: Transporter + Send + Sync> Transit<T> {
                 return;
             }
         }
-        todo!()
+        match cmd {
+            PacketType::Unknown => todo!(),
+            PacketType::Event => {
+                let result = self.event_handler(payload.event_payload()).await;
+            }
+            PacketType::Request => {
+                let result = self.request_handler(payload.request_paylaod()).await;
+            }
+            PacketType::Response => {
+                let result = self.response_handler(payload.response_payload()).await;
+            },
+            PacketType::Discover => todo!(),
+            PacketType::Info => todo!(),
+            PacketType::Disconnect => {}
+            PacketType::Heartbeat => todo!(),
+            PacketType::Ping => {
+                let result = self.send_pong(payload.ping_payload()).await;
+            }
+            PacketType::Pongs => {
+                let result = self.process_pong(payload.pong_payload()).await;
+            }
+            PacketType::GossipReq => todo!(),
+            PacketType::GossipRes => todo!(),
+            PacketType::GossipHello => todo!(),
+            PacketType::Null => todo!(),
+        }
     }
 
     async fn event_handler(&self, payload: PayloadEvent) -> anyhow::Result<bool> {
@@ -249,35 +274,36 @@ impl<T: Transporter + Send + Sync> Transit<T> {
         Ok(())
     }
 
-    pub(crate) async fn response_handler(&mut self, packet: PayloadResponse) {
-        let id = packet.id;
-        let req = self.pending_requests.get_mut(&id);
+    pub(crate) async fn response_handler(&self, payload: PayloadResponse) {
+        let id = payload.id;
+        let mut pending_requests =self.pending_requests.write().await;
+        let req = pending_requests.get_mut(&id);
         match req {
             Some(req) => {
                 debug!(
                     "<= Response {} is received from {}.",
-                    req.action, packet.sender
+                    req.action, payload.sender
                 );
-                req.ctx.node_id = Some(packet.sender);
+                req.ctx.node_id = Some(payload.sender);
                 //TODO: merge meta
                 self.remove_pending_request(&id);
-                if !packet.success {
+                if !payload.success {
                     //TODO:Call error
                 } else {
                     //TODO: (req.resolve)(packet.data)
                 }
             }
             None => {
-                debug!("Orphan response is received. Maybe the request is timed out earlier. ID:{} , Sender:{}" , id , packet.sender);
+                debug!("Orphan response is received. Maybe the request is timed out earlier. ID:{} , Sender:{}" , id , payload.sender);
                 //TODO: update the metrics
                 return;
             }
         }
     }
 
-    async fn request(&mut self, ctx: Context, resolve: fn(HandlerResult)) -> anyhow::Result<()> {
+    async fn request(&self, ctx: Context, resolve: fn(HandlerResult)) -> anyhow::Result<()> {
         if self.opts.max_queue_size.is_some() {
-            if self.pending_requests.len() >= self.opts.max_queue_size.unwrap() {
+            if self.pending_requests.read().await.len() >= self.opts.max_queue_size.unwrap() {
                 //TODO: Proper error handling
                 bail!("Max queue size reached")
             }
@@ -286,7 +312,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
         Ok(())
     }
 
-    async fn _send_request(&mut self, ctx: Context, resolve: fn(HandlerResult)) {
+    async fn _send_request(&self, ctx: Context, resolve: fn(HandlerResult)) {
         //TODO: handle streaming response
         let node_id = ctx.node_id.to_owned();
         let action = ctx.action().to_string();
@@ -321,7 +347,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
         };
         debug!("=> Send {} request to {} node", action, node_name);
 
-        self.pending_requests.insert(id, request);
+        self.pending_requests.write().await.insert(id, request);
         let result = self.publish(packet).await;
         if result.is_err() {
             let err = result.err().unwrap();
@@ -393,13 +419,13 @@ impl<T: Transporter + Send + Sync> Transit<T> {
         Ok(())
     }
 
-    fn remove_pending_request(&mut self, id: &str) {
-        self.pending_requests.remove(id);
+    async fn remove_pending_request(&self, id: &str) {
+        self.pending_requests.write().await.remove(id);
     }
 
-    fn remove_pending_request_by_node(&mut self, node_id: &str) {
+    async fn remove_pending_request_by_node(&self, node_id: &str) {
         debug!("Remove pending requests of {} node.", node_id);
-        self.pending_requests.retain(|key, value| {
+        self.pending_requests.write().await.retain(|key, value| {
             if value.node_id.is_some() && value.node_id.as_ref().unwrap() == node_id {
                 //TODO: add the req.reject error
                 return false;
@@ -546,7 +572,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
     }
 
     async fn subscribe(&self, topic: String, node_id: String) -> anyhow::Result<()> {
-        self.tx.subscibe(topic,  Some(node_id)).await
+        self.tx.subscibe(topic, Some(node_id)).await
     }
 
     async fn publish<P: PacketPayload>(&self, packet: Packet<P>) -> anyhow::Result<()> {

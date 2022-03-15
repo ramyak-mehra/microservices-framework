@@ -58,7 +58,7 @@ impl From<&str> for PacketType {
             "GOSSIP_RES" => PacketType::GossipRes,
             "GOSSIP_HELLO" => PacketType::GossipHello,
             "NULL" => PacketType::Null,
-            _=>PacketType::Unknown
+            _ => PacketType::Unknown,
         }
     }
 }
@@ -94,15 +94,30 @@ where
     Self: Sized,
 {
     fn tipe(&self) -> PacketType;
-    fn event_payload(self) -> anyhow::Result<PayloadEvent> {
-        bail!("Not an event payload")
-    }
-    fn request_paylaod(self) -> PayloadRequest {
-        panic!("Not a request payload")
-    }
     fn sender(&self) -> &str;
     fn instance_id(&self) -> &str {
         panic!("Only Info packets have instance_id")
+    }
+    fn request_paylaod(self) -> PayloadRequest {
+        panic!("Not a request payload.")
+    }
+    fn response_payload(self) -> PayloadResponse {
+        panic!("Not a response payload.")
+    }
+    fn event_payload(self) -> PayloadEvent {
+        panic!("Not an event payload.")
+    }
+    fn heartbeat_payload(self) -> PayloadHeartbeat {
+        panic!("Not a heartbeat payload.")
+    }
+    fn pong_payload(self) -> PayloadPong {
+        panic!("Not a pong payload.")
+    }
+    fn ping_payload(self) -> PayloadPing {
+        panic!("Not a ping payload.")
+    }
+    fn info_payload(self) -> PayloadInfo {
+        panic!("Not an info payload.")
     }
 }
 
@@ -168,6 +183,9 @@ impl PacketPayload for PayloadResponse {
     fn sender(&self) -> &str {
         &self.sender
     }
+    fn response_payload(self) -> Self {
+        self
+    }
 }
 #[derive(Debug, Serialize, Deserialize)]
 
@@ -188,8 +206,8 @@ impl PacketPayload for PayloadEvent {
     fn tipe(&self) -> PacketType {
         PacketType::Event
     }
-    fn event_payload(self) -> anyhow::Result<PayloadEvent> {
-        Ok(self)
+    fn event_payload(self) -> Self {
+        self
     }
     fn sender(&self) -> &str {
         &self.sender
@@ -225,6 +243,9 @@ impl PacketPayload for PayloadHeartbeat {
     fn sender(&self) -> &str {
         &self.sender
     }
+    fn heartbeat_payload(self) -> Self {
+        self
+    }
 }
 #[derive(Debug, Clone, Serialize)]
 pub(crate) struct PayloadPong {
@@ -241,6 +262,9 @@ impl PacketPayload for PayloadPong {
     fn sender(&self) -> &str {
         &self.sender
     }
+    fn pong_payload(self) -> Self {
+        self
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -255,6 +279,9 @@ impl PacketPayload for PayloadPing {
     }
     fn sender(&self) -> &str {
         &self.sender
+    }
+    fn ping_payload(self) -> Self {
+        self
     }
 }
 
@@ -292,5 +319,8 @@ impl PacketPayload for PayloadInfo {
 
     fn instance_id(&self) -> &str {
         &self.instance_id
+    }
+    fn info_payload(self) -> Self {
+        self
     }
 }
