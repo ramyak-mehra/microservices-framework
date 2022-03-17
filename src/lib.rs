@@ -14,8 +14,9 @@ pub(crate)mod broker_delegate;
 pub(crate)use broker::HandlerResult;
 pub(crate)use broker::ServiceBroker;
 pub(crate)use broker::ServiceBrokerMessage;
-pub(crate)use registry::Registry;
+pub(crate)use registry::{Registry , DiscovererMessage};
 pub(crate)use service::Service;
 
 const INTERNAL_PREFIX: char = '$';
 type BrokerSender = tokio::sync::mpsc::UnboundedSender<ServiceBrokerMessage>;
+type DiscovererSender = tokio::sync::mpsc::UnboundedSender<DiscovererMessage>;

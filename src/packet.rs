@@ -1,13 +1,6 @@
-use crate::{
-    errors::PacketError,
-    registry::{Client, Payload, ServiceItemInfo},
-    HandlerResult,
-};
-use anyhow::bail;
+use crate::registry::{Client, NodeRawInfo, Payload, ServiceItemInfo};
 use serde::{Deserialize, Serialize};
-use serde_bytes::*;
-use serde_json::*;
-use std::{any, fmt::Display};
+use std::fmt::Display;
 
 #[derive(Debug, Clone, Serialize)]
 #[repr(usize)]
@@ -34,7 +27,6 @@ pub(crate) enum PacketType {
     GossipReq,
     GossipRes,
     GossipHello,
-    Null,
 }
 
 impl Display for PacketType {
@@ -57,7 +49,7 @@ impl From<&str> for PacketType {
             "GOSSIP_REQ" => PacketType::GossipReq,
             "GOSSIP_RES" => PacketType::GossipRes,
             "GOSSIP_HELLO" => PacketType::GossipHello,
-            "NULL" => PacketType::Null,
+
             _ => PacketType::Unknown,
         }
     }
@@ -78,7 +70,6 @@ impl From<PacketType> for String {
             PacketType::GossipReq => "GOSSIP_REQ".to_string(),
             PacketType::GossipRes => "GOSSIP_RES".to_string(),
             PacketType::GossipHello => "GOSSIP_HELLO".to_string(),
-            PacketType::Null => "NULL".to_string(),
         }
     }
 }
@@ -118,6 +109,12 @@ where
     }
     fn info_payload(self) -> PayloadInfo {
         panic!("Not an info payload.")
+    }
+    fn disconnect_payload(self) -> PayloadDisconnect {
+        panic!("Not a disconnect payload")
+    }
+    fn discover_payload(self) -> PayloadDiscover {
+        panic!("Not a discover payload")
     }
 }
 
@@ -286,13 +283,30 @@ impl PacketPayload for PayloadPing {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub(crate) struct PayloadNull {}
-impl PacketPayload for PayloadNull {
+pub(crate) struct PayloadDisconnect {
+    pub(crate) sender: String,
+}
+impl PacketPayload for PayloadDisconnect {
     fn tipe(&self) -> PacketType {
-        PacketType::Null
+        PacketType::Disconnect
     }
     fn sender(&self) -> &str {
-        "no_sender"
+        &self.sender
+    }
+}
+#[derive(Debug, Clone, Serialize)]
+pub(crate) struct PayloadDiscover {
+    pub(crate) sender: String,
+}
+impl PacketPayload for PayloadDiscover {
+    fn tipe(&self) -> PacketType {
+        PacketType::Discover
+    }
+    fn sender(&self) -> &str {
+        &self.sender
+    }
+    fn discover_payload(self)->Self{
+        self
     }
 }
 
@@ -322,5 +336,20 @@ impl PacketPayload for PayloadInfo {
     }
     fn info_payload(self) -> Self {
         self
+    }
+}
+impl PayloadInfo {
+    pub(crate) fn from_node_info(item: NodeRawInfo, sender: String) -> Self {
+        Self {
+            sender,
+            services: item.services,
+            config: item.config,
+            ip_list: item.ip_list,
+            hostame: item.hostame,
+            client: item.client,
+            seq: item.seq,
+            instance_id: item.instance_id,
+            meta_data: item.meta_data,
+        }
     }
 }

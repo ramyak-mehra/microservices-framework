@@ -1,14 +1,8 @@
-use crate::packet::{Packet, PayloadNull, PayloadResponse};
-
 use super::*;
 
 #[derive(Debug)]
-pub(crate)struct JSONSerializer {}
-impl JSONSerializer {
-    fn do_it(&self) -> impl PacketPayload {
-        PayloadNull {}
-    }
-}
+pub(crate) struct JSONSerializer {}
+impl JSONSerializer {}
 impl BaseSerializer for JSONSerializer {
     type Data = String;
 

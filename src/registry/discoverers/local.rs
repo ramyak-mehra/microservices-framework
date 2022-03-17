@@ -1,9 +1,13 @@
 use super::*;
-use crate::{broker_delegate::BrokerDelegate, transporter::nats::NatsTransporter, BrokerSender};
+use crate::{
+    broker_delegate::BrokerDelegate,
+    transporter::{nats::NatsTransporter, transit::TransitMessage},
+    BrokerSender,
+};
 use tokio_js_set_interval::{_set_interval_spawn, set_interval};
 
 struct LocalDiscoverer {
-    transit: Transit<NatsTransporter>,
+    transit: mpsc::UnboundedSender<TransitMessage>,
     registry: Arc<RwLock<Registry>>,
     opts: DiscovererOpts,
     broker_sender: BrokerSender,
@@ -13,6 +17,7 @@ struct LocalDiscoverer {
     heartbeat_timer_id: Option<u64>,
     check_nodes_timer_id: Option<u64>,
     offline_timer_id: Option<u64>,
+    node_id: String,
 }
 
 impl LocalDiscoverer {
@@ -24,11 +29,17 @@ impl LocalDiscoverer {
             let time = self.opts.heartbeat_interval;
         }
     }
+    fn transit_sender(&self) -> mpsc::UnboundedSender<TransitMessage> {
+        self.transit.clone()
+    }
 }
 #[async_trait]
 impl Discoverer<NatsTransporter> for LocalDiscoverer {
     fn registry(&self) -> &Arc<tokio::sync::RwLock<Registry>> {
         &self.registry
+    }
+    fn node_id(&self) -> &str {
+        &self.node_id
     }
 
     fn broker_sender(&self) -> &BrokerSender {
@@ -41,10 +52,6 @@ impl Discoverer<NatsTransporter> for LocalDiscoverer {
 
     fn opts(&self) -> &DiscovererOpts {
         &self.opts
-    }
-
-    fn transit(&self) -> &Transit<NatsTransporter> {
-        &self.transit
     }
 
     fn set_heartbeat_interval(&mut self, interval: usize) {
@@ -60,30 +67,32 @@ impl Discoverer<NatsTransporter> for LocalDiscoverer {
     }
 
     async fn discover_node(&self, node_id: &str) {
-        let broker_sender = self.broker_sender.clone();
         let node_id = node_id.to_string();
-        tokio::spawn(async move {
-            Transit::<NatsTransporter>::discover_node(broker_sender, node_id).await;
-        });
+        let transit_sender = self.transit_sender();
+
+        transit_sender.send(TransitMessage::DiscoverNode { node_id });
     }
 
     async fn discover_all_nodes(&self) {
-        let broker_sender = self.broker_sender.clone();
-        tokio::spawn(async move {
-            Transit::<NatsTransporter>::discover_nodes(broker_sender).await;
-        });
+        let transit_sender = self.transit_sender();
+
+        transit_sender.send(TransitMessage::DiscoverNodes);
     }
 
     async fn send_local_node_info(&self, node_id: Option<String>) {
         let info = self.registry.read().await.get_local_node_info(false);
+        let transit_sender = self.transit_sender();
         match info {
             Ok(info) => {
                 if let None = node_id {
                     if self.broker.options().disable_balancer {
-                        let _ = self.transit.tx.make_balanced_subscriptions().await;
+                        let (sender, mut recv) = oneshot::channel::<()>();
+                        transit_sender.send(TransitMessage::MakeBalancedSubscription(sender));
+                        recv.await;
                     }
                 };
-                self.transit.send_node_info(info, node_id);
+
+                transit_sender.send(TransitMessage::SendNodeInfo { info, node_id });
             }
             Err(err) => warn!("No local info present. {}", err),
         }

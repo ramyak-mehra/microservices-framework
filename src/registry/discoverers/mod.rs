@@ -7,6 +7,7 @@ use derive_more::Display;
 use log::{info, warn};
 use serde_json::{json, Value};
 use std::time::Duration;
+use tokio::sync::oneshot;
 pub(crate) use tokio::sync::{mpsc, RwLock};
 use tokio_js_set_interval::{_set_interval_spawn, clear_interval};
 
@@ -30,8 +31,7 @@ where
 
     fn opts(&self) -> &DiscovererOpts;
 
-    fn transit(&self) -> &Transit<T>;
-
+    fn node_id(&self) -> &str;
     fn set_heartbeat_interval(&mut self, interval: usize);
 
     fn discoverer_sender(&self) -> mpsc::UnboundedSender<DiscovererMessage>;
@@ -127,7 +127,7 @@ where
         if self.opts().disable_heartbeat_checks {
             return;
         }
-        
+
         let mut registry = self.registry().write().await;
         registry
             .check_remote_nodes(self.opts().heartbeat_timout)
@@ -186,7 +186,7 @@ where
         if !self.broker().transit_present() {
             return;
         }
-        self.transit().send_disconnect_packet().await;
+        Transit::<T>::send_disconnect_packet(self.node_id().to_string()).await;
     }
 
     fn remote_node_disconnected(&self, node_id: &str, is_unexpected: bool) {
@@ -222,6 +222,16 @@ where
                 DiscovererMessage::HeartBeat => self.beat().await,
                 DiscovererMessage::RemoteNode => self.check_remote_nodes().await,
                 DiscovererMessage::OfflineTimer => self.check_offline_nodes().await,
+                DiscovererMessage::LocalNodeDisconnect(_) => todo!(),
+                DiscovererMessage::LocalNodeready => todo!(),
+                DiscovererMessage::DiscoverAllNodes => todo!(),
+                DiscovererMessage::SendLocalNodeInfo { sender } => todo!(),
+                DiscovererMessage::ProcessRemoteNodeInfo(_) => todo!(),
+                DiscovererMessage::RemoteNodeDisconnected {
+                    sender,
+                    is_unexpected,
+                } => todo!(),
+                DiscovererMessage::HeartbeatRecieved(_) => todo!(),
             }
         }
     }
@@ -243,10 +253,17 @@ struct DiscovererOpts {
     heartbeat_interval: Duration,
     heartbeat_timout: Duration,
 }
-enum DiscovererMessage {
+pub(crate) enum DiscovererMessage {
     HeartBeat,
     RemoteNode,
     OfflineTimer,
+    LocalNodeDisconnect(oneshot::Sender<()>),
+    LocalNodeready,
+    DiscoverAllNodes,
+    SendLocalNodeInfo { sender: String },
+    ProcessRemoteNodeInfo(PayloadInfo),
+    RemoteNodeDisconnected { sender: String, is_unexpected: bool },
+    HeartbeatRecieved(PayloadHeartbeat),
 }
 enum TimersId {
     Heartbeat,
