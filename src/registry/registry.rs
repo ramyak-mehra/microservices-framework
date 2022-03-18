@@ -22,11 +22,9 @@ pub(crate) struct Registry {
     pub(crate) events: EventCatalog,
     node_id: String,
     /*
-    metrics
-    strategy factor
+    metrics    
     discoverer
     opts
-    events
     */
 }
 impl Registry {
@@ -34,7 +32,6 @@ impl Registry {
         broker_sender: UnboundedSender<ServiceBrokerMessage>,
         node_id: String,
         instance_id: String,
-
         broker_options: Arc<BrokerOptions>,
     ) -> Self {
         //TODO:get the library version for the client

@@ -256,7 +256,7 @@ where
                         Self::local_node_disconnected(broker, node_id).await;
                         let _ = sender.send(());
                     }
-                    DiscovererMessage::LocalNodeready => {
+                    DiscovererMessage::LocalNodeReady => {
                         Self::local_node_ready(
                             registry,
                             transit_sender,
@@ -264,17 +264,19 @@ where
                         )
                         .await;
                     }
-                    DiscovererMessage::DiscoverAllNodes => {
+                    DiscovererMessage::DiscoverAllNodes(sender_ch) => {
                         Self::discover_all_nodes(transit_sender).await;
+                        let _ =sender_ch.send(());
                     }
-                    DiscovererMessage::SendLocalNodeInfo { sender } => {
+                    DiscovererMessage::SendLocalNodeInfo (sender , sender_ch) => {
                         Self::send_local_node_info(
                             registry,
                             transit_sender,
-                            Some(sender),
+                            sender,
                             broker.options().disable_balancer,
                         )
                         .await;
+                        let _ = sender_ch.send(());
                     }
                     DiscovererMessage::ProcessRemoteNodeInfo {
                         sender,
@@ -328,11 +330,10 @@ pub(crate) enum DiscovererMessage {
     RemoteNode,
     OfflineTimer,
     LocalNodeDisconnect(oneshot::Sender<()>),
-    LocalNodeready,
-    DiscoverAllNodes,
-    SendLocalNodeInfo {
-        sender: String,
-    },
+    LocalNodeReady,
+    DiscoverAllNodes(oneshot::Sender<()>),
+    SendLocalNodeInfo(Option<String>,oneshot::Sender<()>)
+      ,
     ProcessRemoteNodeInfo {
         sender: String,
         info_payload: PayloadInfo,

@@ -1,10 +1,10 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use chrono::{DateTime, Local};
 use derive_more::Display;
 use log::{debug, error, info, warn};
-
 use serde_json::{json, Value};
+use tokio_js_set_interval::{_set_timeout, set_timeout};
 
 use super::*;
 use crate::{
@@ -27,6 +27,7 @@ use tokio::{
 type P = PacketType;
 struct TransitOptions {
     max_queue_size: Option<usize>,
+    disable_reconnect: bool,
 }
 
 struct Request {
@@ -77,14 +78,65 @@ impl<T: Transporter + Send + Sync> Transit<T> {
             pending_requests: Arc::new(RwLock::new(HashMap::new())),
         }
     }
-
-    fn after_connect() {
-        todo!()
+    /// It will be called after transporter connected or reconnected.
+    async fn after_connect(&mut self, was_reconnect: bool) {
+        if was_reconnect {
+            // After reconnecting, we should send a broadcast INFO packet because there may be some new nodes.
+            // In case of disabled balancer, it triggers the `make_balanced_subscriptions method`.
+            let (sender_ch, recv) = oneshot::channel();
+            let _ = self
+                .discoverer_sender
+                .send(DiscovererMessage::SendLocalNodeInfo(None, sender_ch));
+            let _ = recv.await;
+        } else {
+            self.make_subsciptions().await;
+        }
+        let (sender_ch, recv) = oneshot::channel();
+        let _ = self
+            .discoverer_sender
+            .send(DiscovererMessage::DiscoverAllNodes(sender_ch));
+        let _ = recv.await;
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        self.conntected = true;
+        let data = json!({
+            "wasReconnect": !!was_reconnect,
+        });
+        let _ = self
+            .broker_sender
+            .send(ServiceBrokerMessage::BroadcastLocal {
+                event_name: TransporterEvents::Connected.to_string(),
+                data,
+                opts: Value::Null,
+            });
     }
 
     async fn connect(&mut self) {
         info!("Connecting to the transporter...");
-        todo!()
+        let mut reconnected_started = false;
+        let result = self.tx.connect().await;
+        if let Err(err) = result {
+            if self.disconnecting {
+                return;
+            }
+            if reconnected_started {
+                return;
+            }
+            warn!("Connection is failed. {}", err);
+            debug!("{}", err);
+            if self.opts.disable_reconnect {
+                return;
+            }
+            reconnected_started = true;
+
+            _set_timeout(
+                || {
+                    info!("Reconnecting...");
+                    let _ = self.tx.connect();
+                },
+                5 * 1000,
+            )
+            .await;
+        };
     }
     async fn disconnect(&mut self) {
         self.conntected = false;
@@ -103,19 +155,20 @@ impl<T: Transporter + Send + Sync> Transit<T> {
             let result = self
                 .discoverer_sender
                 .send(DiscovererMessage::LocalNodeDisconnect(sender));
-            recv.await;
+            let _ = recv.await;
             self.tx.disconnect().await;
             self.disconnecting = false;
         }
     }
     /// Local broker is ready (all services loaded).
     /// Send INFO packet to all other nodes
-    fn read(&mut self) {
+    fn ready(&mut self) {
         if self.conntected {
             self.is_ready = true;
-            //TODO:
-            //return self.discoverer.localnodeready()
-            todo!()
+
+            let _ = self
+                .discoverer_sender
+                .send(DiscovererMessage::LocalNodeReady);
         }
     }
     ///Send DISCONNECT to remote nodes
@@ -514,14 +567,25 @@ impl<T: Transporter + Send + Sync> Transit<T> {
     }
 
     fn send_response(
-        &self,
         node_id: String,
+        self_node_id: String,
         id: String,
         meta: Payload,
         data: Option<HandlerResult>,
         err: Option<String>,
     ) {
-        let payload = {};
+        if let Some(result) = data {            
+            let payload = PayloadResponse {
+                sender: self_node_id,
+                id,
+                success: err.is_none(),
+                data: todo!(),
+                error: "".to_string(),
+                meta: todo!(),
+                stream: false,
+                seq: 0,
+            };
+        }
         if err.is_some() {
             //TODO:
             todo!("add error to the payload");
@@ -675,6 +739,8 @@ impl<T: Transporter + Send + Sync> Transit<T> {
 enum TransporterEvents {
     #[display(fmt = "$transporter.disconnected")]
     Disconnected,
+    #[display(fmt = "$transporter.connected")]
+    Connected,
     #[display(fmt = "$transit.error")]
     Error,
     #[display(fmt = "$node.pong")]

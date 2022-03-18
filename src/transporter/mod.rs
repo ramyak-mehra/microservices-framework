@@ -24,7 +24,7 @@ pub(crate) trait Transporter {
     fn broker(&self)->&Arc<BrokerDelegate>;
     fn prefix(&self) -> &String;
     fn has_built_in_balancer(&self) -> bool;
-    async fn connect(&self);
+    async fn connect(&self)->anyhow::Result<()>;
     fn on_connected(&mut self, was_reconnect: bool);
     async fn disconnect(&self);
 

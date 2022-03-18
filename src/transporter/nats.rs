@@ -164,17 +164,7 @@ impl Transporter for NatsTransporter {
         todo!()
     }
 
-    fn connect<'life0, 'async_trait>(
-        &'life0 self,
-    ) -> core::pin::Pin<
-        Box<dyn core::future::Future<Output = ()> + core::marker::Send + 'async_trait>,
-    >
-    where
-        'life0: 'async_trait,
-        Self: 'async_trait,
-    {
-        todo!()
-    }
+  
 
     fn on_connected(&mut self, was_reconnect: bool) {
         todo!()
@@ -274,6 +264,11 @@ impl Transporter for NatsTransporter {
     {
         todo!()
     }
+
+    fn connect< 'life0, 'async_trait>(& 'life0 self) ->  core::pin::Pin<Box<dyn core::future::Future<Output = anyhow::Result<()> > + core::marker::Send+ 'async_trait> >where 'life0: 'async_trait,Self: 'async_trait {
+        todo!()
+    }
+
 }
 struct NatsOptions {
     preserve_buffers: bool,

@@ -187,7 +187,7 @@ impl PacketPayload for PayloadResponse {
 #[derive(Debug, Serialize, Deserialize)]
 
 pub(crate) struct PayloadResponse {
-    pub(crate) ver: String,
+    
     pub(crate) sender: String,
     pub(crate) id: String,
     pub(crate) success: bool,
