@@ -217,9 +217,10 @@ impl<T: Transporter + Send + Sync> Transit<T> {
                         });
                 }
                 PacketType::Heartbeat => {
-                    let result = discoverer_sender.send(DiscovererMessage::HeartbeatRecieved(
-                        payload.heartbeat_payload(),
-                    ));
+                    let result = discoverer_sender.send(DiscovererMessage::HeartbeatRecieved {
+                        sender: payload.sender().to_string(),
+                        heartbeat_payload: payload.heartbeat_payload(),
+                    });
                 }
                 PacketType::Ping => {
                     let result =
@@ -692,7 +693,7 @@ pub(crate) enum TransitMessage {
         info: NodeRawInfo,
         node_id: Option<String>,
     },
-    MakeBalancedSubscription(oneshot::Sender<()>)
+    MakeBalancedSubscription(oneshot::Sender<()>),
 }
 fn packet_topic(node_id: &str, packet_type: PacketType) -> Topic {
     Topic {

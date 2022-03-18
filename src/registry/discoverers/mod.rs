@@ -11,25 +11,30 @@ use tokio::sync::oneshot;
 pub(crate) use tokio::sync::{mpsc, RwLock};
 use tokio_js_set_interval::{_set_interval_spawn, clear_interval};
 
-use crate::{broker_delegate::BrokerDelegate, utils, BrokerSender};
+use crate::{
+    broker_delegate::BrokerDelegate, transporter::transit::TransitMessage, utils, BrokerSender,
+};
 pub(crate) use crate::{
     packet::{PayloadHeartbeat, PayloadInfo},
     transporter::{Transit, Transporter},
     Registry, ServiceBroker, ServiceBrokerMessage,
 };
-
+type SharedRegistry = Arc<RwLock<Registry>>;
+type TransitSender = mpsc::UnboundedSender<TransitMessage>;
 #[async_trait]
 trait Discoverer<T: Transporter + Sync + Send>
 where
     Self: Sync + Send,
 {
-    fn registry(&self) -> &Arc<RwLock<Registry>>;
+    fn registry(&self) -> &SharedRegistry;
 
-    fn broker_sender(&self) -> &BrokerSender;
+    fn broker_sender(&self) -> BrokerSender;
 
     fn broker(&self) -> &Arc<BrokerDelegate>;
 
-    fn opts(&self) -> &DiscovererOpts;
+    fn opts(&self) -> &Arc<DiscovererOpts>;
+
+    fn transit_sender(&self) -> TransitSender;
 
     fn node_id(&self) -> &str;
     fn set_heartbeat_interval(&mut self, interval: usize);
@@ -110,8 +115,8 @@ where
         self.start_heatbeat_timers().await;
     }
     /// Heartbeat method.
-    async fn beat(&self) {
-        let mut registry = self.registry().write().await;
+    async fn beat(registry: SharedRegistry) {
+        let mut registry = registry.write().await;
         let cpu_usage = utils::get_cpu_usage().await;
         registry
             .nodes
@@ -119,41 +124,41 @@ where
             .unwrap()
             .update_local_info(cpu_usage);
 
-        self.send_heartbeat().await;
+        // self.send_heartbeat().await;
     }
 
     /// Check all registered remote nodes are available.
-    async fn check_remote_nodes(&self) {
-        if self.opts().disable_heartbeat_checks {
+    async fn check_remote_nodes(registry: SharedRegistry, opts: Arc<DiscovererOpts>) {
+        if opts.disable_heartbeat_checks {
             return;
         }
 
-        let mut registry = self.registry().write().await;
-        registry
-            .check_remote_nodes(self.opts().heartbeat_timout)
-            .await;
+        let mut registry = registry.write().await;
+        registry.check_remote_nodes(opts.heartbeat_timout).await;
     }
     /// Check offline nodes. Remove which are older than 10 minutes.
-    async fn check_offline_nodes(&self) {
-        if self.opts().disable_offline_node_removing {
+    async fn check_offline_nodes(registry: SharedRegistry, opts: Arc<DiscovererOpts>) {
+        if opts.disable_offline_node_removing {
             return;
         }
-        let mut registry = self.registry().write().await;
+        let mut registry = registry.write().await;
         registry
-            .check_offline_nodes(self.opts().clean_offline_nodes_timeout)
+            .check_offline_nodes(opts.clean_offline_nodes_timeout)
             .await;
     }
 
-    async fn heartbeat_received(&self, node_id: &str, payload: PayloadHeartbeat) {
-        let registry = self.registry();
+    async fn heartbeat_received(registry:SharedRegistry , node_id: &str, payload: PayloadHeartbeat) {
         let registry = registry.read().await;
         let node = registry.nodes.get_node(node_id);
         todo!("hearbeat_recieved see below")
         //Payload while sending is heartbeat but it does not contain the necessary info to parse the payload.
     }
 
-    async fn process_remote_node_info(&self, node_id: &str, payload: PayloadInfo) {
-        let registry = &self.registry();
+    async fn process_remote_node_info(
+        registry: SharedRegistry,
+        node_id: &str,
+        payload: PayloadInfo,
+    ) {
         let mut registry = registry.write().await;
         registry.process_node_info(node_id, payload).await;
     }
@@ -171,68 +176,133 @@ where
     async fn discover_node(&self, node_id: &str);
 
     /// Discover all nodes (after connected)
-    async fn discover_all_nodes(&self);
+    async fn discover_all_nodes(transit_sender: TransitSender);
 
     ///Called whent the local node is ready(transporter connected)
-    async fn local_node_ready(&self, node_id: Option<String>) {
+    async fn local_node_ready(
+        registry: SharedRegistry,
+        transit_sender: TransitSender,
+
+        disable_balancer: bool,
+    ) {
         // Local node has started all local services. We send a new INFO packet
         // which contains the local services because we are ready to accept incoming requests.
-        self.send_local_node_info(node_id).await;
+        Self::send_local_node_info(registry, transit_sender, None, disable_balancer).await;
     }
 
-    async fn send_local_node_info(&self, node_id: Option<String>);
+    async fn send_local_node_info(
+        registry: SharedRegistry,
+        transit_sender: TransitSender,
+        node_id: Option<String>,
+        disable_balancer: bool,
+    );
 
-    async fn local_node_disconnected(&self) {
-        if !self.broker().transit_present() {
+    async fn local_node_disconnected(broker: Arc<BrokerDelegate>, node_id: String) {
+        if !broker.transit_present() {
             return;
         }
-        Transit::<T>::send_disconnect_packet(self.node_id().to_string()).await;
+        Transit::<T>::send_disconnect_packet(node_id).await;
     }
 
-    fn remote_node_disconnected(&self, node_id: &str, is_unexpected: bool) {
-        let node = self
-            .registry()
-            .blocking_write()
+    async fn remote_node_disconnected(
+        registry: SharedRegistry,
+        broker_sender: BrokerSender,
+        node_id: &str,
+        is_unexpected: bool,
+        transit_present: bool,
+    ) {
+        let node = registry
+            .write()
+            .await
             .nodes
             .disconnected(node_id, is_unexpected);
         if let Some(node) = node {
-            self.registry()
-                .blocking_write()
+            registry
+                .write()
+                .await
                 .unregister_service_by_node_id(node_id);
             let data = json!({"node":node , "unexpected":is_unexpected});
-            let _ = self
-                .broker_sender()
-                .send(ServiceBrokerMessage::BroadcastLocal {
-                    event_name: NodeEvents::Disconnected.to_string(),
-                    data,
-                    opts: Value::Null,
-                });
+            let _ = broker_sender.send(ServiceBrokerMessage::BroadcastLocal {
+                event_name: NodeEvents::Disconnected.to_string(),
+                data,
+                opts: Value::Null,
+            });
             if is_unexpected {
                 warn!("Node {} disconnected unexpectedly.", node_id);
             } else {
                 info!("Node {} disconnected", node_id);
             }
             //TODO: remove pending requests from transit as well.
-            if self.broker().transit_present() {}
+            if transit_present {}
         }
     }
     async fn message_handler(&mut self) {
         while let Some(msg) = self.discoverer_reciever().recv().await {
-            match msg {
-                DiscovererMessage::HeartBeat => self.beat().await,
-                DiscovererMessage::RemoteNode => self.check_remote_nodes().await,
-                DiscovererMessage::OfflineTimer => self.check_offline_nodes().await,
-                DiscovererMessage::LocalNodeDisconnect(_) => todo!(),
-                DiscovererMessage::LocalNodeready => todo!(),
-                DiscovererMessage::DiscoverAllNodes => todo!(),
-                DiscovererMessage::SendLocalNodeInfo { sender } => todo!(),
-                DiscovererMessage::ProcessRemoteNodeInfo(_) => todo!(),
-                DiscovererMessage::RemoteNodeDisconnected {
-                    sender,
-                    is_unexpected,
-                } => todo!(),
-                DiscovererMessage::HeartbeatRecieved(_) => todo!(),
-            }
+            let registry = Arc::clone(&self.registry());
+            let opts = Arc::clone(&self.opts());
+            let broker = Arc::clone(&self.broker());
+            let broker_sender = self.broker_sender();
+            let transit_sender = self.transit_sender();
+            let node_id = self.node_id().to_string();
+
+            tokio::spawn(async move {
+                match msg {
+                    DiscovererMessage::HeartBeat => Self::beat(registry).await,
+                    DiscovererMessage::RemoteNode => Self::check_remote_nodes(registry, opts).await,
+                    DiscovererMessage::OfflineTimer => {
+                        Self::check_offline_nodes(registry, opts).await
+                    }
+                    DiscovererMessage::LocalNodeDisconnect(sender) => {
+                        Self::local_node_disconnected(broker, node_id).await;
+                        let _ = sender.send(());
+                    }
+                    DiscovererMessage::LocalNodeready => {
+                        Self::local_node_ready(
+                            registry,
+                            transit_sender,
+                            broker.options().disable_balancer,
+                        )
+                        .await;
+                    }
+                    DiscovererMessage::DiscoverAllNodes => {
+                        Self::discover_all_nodes(transit_sender).await;
+                    }
+                    DiscovererMessage::SendLocalNodeInfo { sender } => {
+                        Self::send_local_node_info(
+                            registry,
+                            transit_sender,
+                            Some(sender),
+                            broker.options().disable_balancer,
+                        )
+                        .await;
+                    }
+                    DiscovererMessage::ProcessRemoteNodeInfo {
+                        sender,
+                        info_payload,
+                    } => {
+                        Self::process_remote_node_info(registry, &sender, info_payload).await;
+                    }
+                    DiscovererMessage::RemoteNodeDisconnected {
+                        sender,
+                        is_unexpected,
+                    } => {
+                        Self::remote_node_disconnected(
+                            registry,
+                            broker_sender,
+                            &sender,
+                            is_unexpected,
+                            broker.transit_present(),
+                        )
+                        .await;
+                    }
+                    DiscovererMessage::HeartbeatRecieved {
+                        sender,
+                        heartbeat_payload,
+                    } => {
+                        Self::heartbeat_received(registry , &sender, heartbeat_payload).await;
+                    },
+                }
+            });
         }
     }
 }
@@ -260,10 +330,21 @@ pub(crate) enum DiscovererMessage {
     LocalNodeDisconnect(oneshot::Sender<()>),
     LocalNodeready,
     DiscoverAllNodes,
-    SendLocalNodeInfo { sender: String },
-    ProcessRemoteNodeInfo(PayloadInfo),
-    RemoteNodeDisconnected { sender: String, is_unexpected: bool },
-    HeartbeatRecieved(PayloadHeartbeat),
+    SendLocalNodeInfo {
+        sender: String,
+    },
+    ProcessRemoteNodeInfo {
+        sender: String,
+        info_payload: PayloadInfo,
+    },
+    RemoteNodeDisconnected {
+        sender: String,
+        is_unexpected: bool,
+    },
+    HeartbeatRecieved {
+        sender: String,
+        heartbeat_payload: PayloadHeartbeat,
+    },
 }
 enum TimersId {
     Heartbeat,

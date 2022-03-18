@@ -9,7 +9,7 @@ use tokio_js_set_interval::{_set_interval_spawn, set_interval};
 struct LocalDiscoverer {
     transit: mpsc::UnboundedSender<TransitMessage>,
     registry: Arc<RwLock<Registry>>,
-    opts: DiscovererOpts,
+    opts: Arc<DiscovererOpts>,
     broker_sender: BrokerSender,
     broker: Arc<BrokerDelegate>,
     discoverer_reciever: mpsc::UnboundedReceiver<DiscovererMessage>,
@@ -35,22 +35,22 @@ impl LocalDiscoverer {
 }
 #[async_trait]
 impl Discoverer<NatsTransporter> for LocalDiscoverer {
-    fn registry(&self) -> &Arc<tokio::sync::RwLock<Registry>> {
+    fn registry(&self) -> &SharedRegistry {
         &self.registry
     }
     fn node_id(&self) -> &str {
         &self.node_id
     }
 
-    fn broker_sender(&self) -> &BrokerSender {
-        &self.broker_sender
+    fn broker_sender(&self) -> BrokerSender {
+        self.broker_sender.clone()
     }
 
     fn broker(&self) -> &Arc<BrokerDelegate> {
         &self.broker
     }
 
-    fn opts(&self) -> &DiscovererOpts {
+    fn opts(&self) -> &Arc<DiscovererOpts> {
         &self.opts
     }
 
@@ -73,19 +73,21 @@ impl Discoverer<NatsTransporter> for LocalDiscoverer {
         transit_sender.send(TransitMessage::DiscoverNode { node_id });
     }
 
-    async fn discover_all_nodes(&self) {
-        let transit_sender = self.transit_sender();
-
+    async fn discover_all_nodes(transit_sender: TransitSender) {
         transit_sender.send(TransitMessage::DiscoverNodes);
     }
 
-    async fn send_local_node_info(&self, node_id: Option<String>) {
-        let info = self.registry.read().await.get_local_node_info(false);
-        let transit_sender = self.transit_sender();
+    async fn send_local_node_info(
+        registry: SharedRegistry,
+        transit_sender: TransitSender,
+        node_id: Option<String>,
+        disable_balancer: bool,
+    ) {
+        let info = registry.read().await.get_local_node_info(false);
         match info {
             Ok(info) => {
                 if let None = node_id {
-                    if self.broker.options().disable_balancer {
+                    if disable_balancer {
                         let (sender, mut recv) = oneshot::channel::<()>();
                         transit_sender.send(TransitMessage::MakeBalancedSubscription(sender));
                         recv.await;
@@ -124,5 +126,9 @@ impl Discoverer<NatsTransporter> for LocalDiscoverer {
 
     fn discoverer_reciever(&mut self) -> &mut mpsc::UnboundedReceiver<DiscovererMessage> {
         &mut self.discoverer_reciever
+    }
+
+    fn transit_sender(&self) -> TransitSender {
+        self.transit.clone()
     }
 }
