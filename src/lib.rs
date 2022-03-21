@@ -14,9 +14,13 @@ pub(crate)mod broker_delegate;
 pub(crate)use broker::HandlerResult;
 pub(crate)use broker::ServiceBroker;
 pub(crate)use broker::ServiceBrokerMessage;
-pub(crate)use registry::{Registry , DiscovererMessage};
 pub(crate)use service::Service;
+pub(crate)use registry::{Registry , DiscovererMessage};
+pub(crate) use transporter::transit::TransitMessage;
+
 
 const INTERNAL_PREFIX: char = '$';
 type BrokerSender = tokio::sync::mpsc::UnboundedSender<ServiceBrokerMessage>;
 type DiscovererSender = tokio::sync::mpsc::UnboundedSender<DiscovererMessage>;
+type TransitSender = tokio::sync::mpsc::UnboundedSender<TransitMessage>;
+type SharedRegistry = std::sync::Arc<tokio::sync::RwLock<Registry>>;

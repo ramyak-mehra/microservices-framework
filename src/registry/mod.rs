@@ -30,7 +30,9 @@ pub(crate)use endpoint_list::EndpointList;
 pub(crate)use event_endpoint::EventEndpoint;
 pub(crate)use node::{Client, Node , NodeRawInfo};
 pub(crate) use service_item::{ServiceItemInfo};
-pub(crate) use discoverers::DiscovererMessage;
+pub(crate) use discoverers::{DiscovererMessage , LocalDiscoverer , Discoverer , DiscovererOpts};
+
+
 // pub(crate)use event_endpoint::EventEndpoint;
 
 type ActionsMap = HashMap<String, EndpointList<ActionEndpoint>>;

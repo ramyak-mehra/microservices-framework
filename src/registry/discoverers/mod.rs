@@ -1,5 +1,5 @@
 mod local;
-
+pub(crate) use local::LocalDiscoverer;
 pub(crate) use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -12,17 +12,18 @@ pub(crate) use tokio::sync::{mpsc, RwLock};
 use tokio_js_set_interval::{_set_interval_spawn, clear_interval};
 
 use crate::{
-    broker_delegate::BrokerDelegate, transporter::transit::TransitMessage, utils, BrokerSender,
+    broker_delegate::BrokerDelegate,
+    transporter::transit::{TransitMessage, TransporterEvents},
+    utils, BrokerSender, DiscovererSender, SharedRegistry, TransitSender,
 };
 pub(crate) use crate::{
     packet::{PayloadHeartbeat, PayloadInfo},
     transporter::{Transit, Transporter},
     Registry, ServiceBroker, ServiceBrokerMessage,
 };
-type SharedRegistry = Arc<RwLock<Registry>>;
-type TransitSender = mpsc::UnboundedSender<TransitMessage>;
+
 #[async_trait]
-trait Discoverer<T: Transporter + Sync + Send>
+pub(crate) trait Discoverer<T: Transporter + Sync + Send>
 where
     Self: Sync + Send,
 {
@@ -39,7 +40,7 @@ where
     fn node_id(&self) -> &str;
     fn set_heartbeat_interval(&mut self, interval: usize);
 
-    fn discoverer_sender(&self) -> mpsc::UnboundedSender<DiscovererMessage>;
+    fn discoverer_sender(&self) -> DiscovererSender;
     fn discoverer_reciever(&mut self) -> &mut mpsc::UnboundedReceiver<DiscovererMessage>;
 
     async fn update_timer_id(&mut self, id: u64, timers_id: TimersId);
@@ -56,10 +57,37 @@ where
     async fn stop(&mut self) {
         self.stop_heartbeat_timers().await;
     }
-    fn init(&mut self, registry: Arc<RwLock<Registry>>);
+    async fn init(&self) {
+        let transporter_connected_sub = self.broker().create_subscriber().await;
+        transporter_connected_sub
+            .subscribe_to(TransporterEvents::Connected.to_string())
+            .await;
+        let transporter_disconnected_sub = self.broker().create_subscriber().await;
+        transporter_disconnected_sub
+            .subscribe_to(TransporterEvents::Disconnected.to_string())
+            .await;
+        let discoverer_sender = self.discoverer_sender();
+        tokio::spawn(async move {
+            let _connected_message = transporter_connected_sub
+                .receiver()
+                .recv_async()
+                .await
+                .unwrap();
+            let _ = discoverer_sender.send(DiscovererMessage::StartHeartbeatTimer);
+        });
+        let discoverer_sender = self.discoverer_sender();
+        tokio::spawn(async move {
+            let _disconnected_message = transporter_disconnected_sub
+                .receiver()
+                .recv_async()
+                .await
+                .unwrap();
+            let _ = discoverer_sender.send(DiscovererMessage::StopHeartbeatTimer);
+        });
+    }
 
     /// Start heartbeat timers
-    async fn start_heatbeat_timers(&mut self) {
+    async fn start_heartbeat_timers(&mut self) {
         self.stop_heartbeat_timers().await;
         if self.opts().heartbeat_interval > Duration::from_secs(0) {
             let interval_time = self.opts().heartbeat_interval;
@@ -112,7 +140,7 @@ where
     /// Disable built-in Hearbeat logic. Used by TCP transported.
     async fn disable_heartbeat(&mut self) {
         self.set_heartbeat_interval(0);
-        self.start_heatbeat_timers().await;
+        self.start_heartbeat_timers().await;
     }
     /// Heartbeat method.
     async fn beat(registry: SharedRegistry) {
@@ -147,7 +175,11 @@ where
             .await;
     }
 
-    async fn heartbeat_received(registry:SharedRegistry , node_id: &str, payload: PayloadHeartbeat) {
+    async fn heartbeat_received(
+        registry: SharedRegistry,
+        node_id: &str,
+        payload: PayloadHeartbeat,
+    ) {
         let registry = registry.read().await;
         let node = registry.nodes.get_node(node_id);
         todo!("hearbeat_recieved see below")
@@ -244,7 +276,11 @@ where
             let broker_sender = self.broker_sender();
             let transit_sender = self.transit_sender();
             let node_id = self.node_id().to_string();
-
+            if matches!(msg, DiscovererMessage::StartHeartbeatTimer) {
+                self.start_heartbeat_timers().await;
+            } else if matches!(msg, DiscovererMessage::StopHeartbeatTimer) {
+                self.stop_heartbeat_timers().await;
+            }
             tokio::spawn(async move {
                 match msg {
                     DiscovererMessage::HeartBeat => Self::beat(registry).await,
@@ -266,9 +302,9 @@ where
                     }
                     DiscovererMessage::DiscoverAllNodes(sender_ch) => {
                         Self::discover_all_nodes(transit_sender).await;
-                        let _ =sender_ch.send(());
+                        let _ = sender_ch.send(());
                     }
-                    DiscovererMessage::SendLocalNodeInfo (sender , sender_ch) => {
+                    DiscovererMessage::SendLocalNodeInfo(sender, sender_ch) => {
                         Self::send_local_node_info(
                             registry,
                             transit_sender,
@@ -301,8 +337,10 @@ where
                         sender,
                         heartbeat_payload,
                     } => {
-                        Self::heartbeat_received(registry , &sender, heartbeat_payload).await;
-                    },
+                        Self::heartbeat_received(registry, &sender, heartbeat_payload).await;
+                    }
+                    DiscovererMessage::StartHeartbeatTimer => todo!(),
+                    DiscovererMessage::StopHeartbeatTimer => todo!(),
                 }
             });
         }
@@ -318,7 +356,8 @@ pub(crate) enum NodeEvents {
     #[display(fmt = "$node.updated")]
     Updated,
 }
-struct DiscovererOpts {
+#[derive(Debug)]
+pub(crate) struct DiscovererOpts {
     disable_heartbeat_checks: bool,
     disable_offline_node_removing: bool,
     clean_offline_nodes_timeout: Duration,
@@ -326,14 +365,15 @@ struct DiscovererOpts {
     heartbeat_timout: Duration,
 }
 pub(crate) enum DiscovererMessage {
+    StartHeartbeatTimer,
+    StopHeartbeatTimer,
     HeartBeat,
     RemoteNode,
     OfflineTimer,
     LocalNodeDisconnect(oneshot::Sender<()>),
     LocalNodeReady,
     DiscoverAllNodes(oneshot::Sender<()>),
-    SendLocalNodeInfo(Option<String>,oneshot::Sender<()>)
-      ,
+    SendLocalNodeInfo(Option<String>, oneshot::Sender<()>),
     ProcessRemoteNodeInfo {
         sender: String,
         info_payload: PayloadInfo,
@@ -347,8 +387,9 @@ pub(crate) enum DiscovererMessage {
         heartbeat_payload: PayloadHeartbeat,
     },
 }
-enum TimersId {
+pub(crate) enum TimersId {
     Heartbeat,
     CheckNodes,
     Offline,
 }
+

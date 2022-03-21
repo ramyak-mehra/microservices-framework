@@ -1,13 +1,15 @@
 use std::sync::Arc;
 
 use anyhow::bail;
+use circulate::Subscriber;
 
 use crate::{
+    broker::BrokerOptions,
     context::Context,
     registry::{discoverers::ServiceBroker, ActionEndpoint},
-    serializers::json::JSONSerializer, broker::BrokerOptions,
+    serializers::json::JSONSerializer,
 };
-
+#[derive(Debug)]
 pub(crate) struct BrokerDelegate {
     broker: Option<Arc<ServiceBroker>>,
     node_id: String,
@@ -52,11 +54,11 @@ impl BrokerDelegate {
         self.check_broker();
         &self.instance_id
     }
-    pub(crate) fn options(&self)->Arc<BrokerOptions>{
+    pub(crate) fn options(&self) -> Arc<BrokerOptions> {
         self.check_broker();
         self.broker().options.clone()
     }
-    pub(crate) fn transit_present(&self)->bool{
+    pub(crate) fn transit_present(&self) -> bool {
         self.broker().transit.is_some()
     }
     pub(crate) async fn get_local_action_endpoint(
@@ -73,5 +75,8 @@ impl BrokerDelegate {
     }
     pub(crate) fn serializer(&self) -> &JSONSerializer {
         self.broker().serializer()
+    }
+    pub(crate) async fn create_subscriber(&self) -> Subscriber {
+        self.broker().create_subscriber().await
     }
 }

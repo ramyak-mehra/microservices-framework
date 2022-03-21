@@ -6,14 +6,15 @@ use crate::{
 };
 use tokio_js_set_interval::{_set_interval_spawn, set_interval};
 
-struct LocalDiscoverer {
+#[derive(Debug)]
+pub(crate) struct LocalDiscoverer {
     transit: mpsc::UnboundedSender<TransitMessage>,
     registry: Arc<RwLock<Registry>>,
     opts: Arc<DiscovererOpts>,
     broker_sender: BrokerSender,
     broker: Arc<BrokerDelegate>,
     discoverer_reciever: mpsc::UnboundedReceiver<DiscovererMessage>,
-    discoverer_sender: mpsc::UnboundedSender<DiscovererMessage>,
+    discoverer_sender: DiscovererSender,
     heartbeat_timer_id: Option<u64>,
     check_nodes_timer_id: Option<u64>,
     offline_timer_id: Option<u64>,
@@ -21,7 +22,30 @@ struct LocalDiscoverer {
 }
 
 impl LocalDiscoverer {
-    fn new(registry: Arc<RwLock<Registry>>) {}
+    pub(crate) fn new(
+        transit: TransitSender,
+        registry: SharedRegistry,
+        opts: DiscovererOpts,
+        broker_sender: BrokerSender,
+        broker: Arc<BrokerDelegate>,
+        node_id: String,
+    ) -> Self {
+        let opts = Arc::new(opts);
+        let (sender, receiver) = mpsc::unbounded_channel::<DiscovererMessage>();
+        Self {
+            transit,
+            registry,
+            opts,
+            broker_sender,
+            broker,
+            discoverer_reciever: receiver,
+            discoverer_sender: sender,
+            heartbeat_timer_id: None,
+            check_nodes_timer_id: None,
+            offline_timer_id: None,
+            node_id,
+        }
+    }
     async fn start_heatbeat_timers(&mut self) {
         self.stop_heartbeat_timers().await;
         if self.opts().heartbeat_interval > Duration::from_secs(0) {
@@ -58,12 +82,8 @@ impl Discoverer<NatsTransporter> for LocalDiscoverer {
         todo!()
     }
 
-    fn discoverer_sender(&self) -> mpsc::UnboundedSender<DiscovererMessage> {
+    fn discoverer_sender(&self) -> DiscovererSender {
         self.discoverer_sender.clone()
-    }
-
-    fn init(&mut self, registry: Arc<RwLock<Registry>>) {
-        todo!("stuff related to local bus")
     }
 
     async fn discover_node(&self, node_id: &str) {

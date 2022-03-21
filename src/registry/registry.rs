@@ -1,16 +1,16 @@
 use std::time::Duration;
 
 use crate::{
-    broker::BrokerOptions, errors::RegistryError, packet::PayloadInfo,
-    registry::discoverers::NodeEvents, service::ServiceSpec, utils, ServiceBroker,
-    ServiceBrokerMessage,
+    broker::BrokerOptions, broker_delegate::BrokerDelegate, errors::RegistryError,
+    packet::PayloadInfo, registry::discoverers::NodeEvents, service::ServiceSpec, utils,
+    BrokerSender, DiscovererSender, ServiceBroker, ServiceBrokerMessage, SharedRegistry,
+    TransitSender,
 };
 
 use super::*;
-use anyhow::bail;
 use log::{debug, info, warn};
 use serde_json::{json, Value};
-use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::{mpsc::UnboundedSender, RwLock};
 #[derive(Debug)]
 
 pub(crate) struct Registry {
@@ -21,11 +21,10 @@ pub(crate) struct Registry {
     pub(crate) actions: ActionCatalog,
     pub(crate) events: EventCatalog,
     node_id: String,
-    /*
-    metrics    
-    discoverer
-    opts
-    */
+    discoverer_sender: Option<DiscovererSender>, /*
+                                                 metrics
+                                                 opts
+                                                 */
 }
 impl Registry {
     pub(crate) fn new(
@@ -46,21 +45,46 @@ impl Registry {
         let services = ServiceCatalog::default();
         let actions = ActionCatalog::default();
         let events = EventCatalog::new(broker_options);
-        Registry {
+
+        Self {
             broker_sender,
             nodes,
             services,
             actions,
             events,
             node_id,
+            discoverer_sender: None,
         }
     }
 
-    fn init() {
-        todo!("initialze discoverer")
+    async fn init(
+        &mut self,
+        transit: TransitSender,
+        registry: SharedRegistry,
+        opts: DiscovererOpts,
+        broker_sender: BrokerSender,
+        broker: Arc<BrokerDelegate>,
+    ) {
+        let mut discoverer = LocalDiscoverer::new(
+            transit,
+            registry,
+            opts,
+            broker_sender,
+            broker,
+            self.node_id.clone(),
+        );
+        let discoverer_sender = discoverer.discoverer_sender();
+        self.discoverer_sender = Some(discoverer_sender);
+        discoverer.init().await;
+        tokio::spawn(async move {
+            discoverer.message_handler().await;
+        });
     }
-    fn stop() {
-        todo!("stop discoverre")
+    async fn stop(&mut self) {
+        self.discoverer_sender
+            .as_ref()
+            .unwrap()
+            .send(DiscovererMessage::StopHeartbeatTimer);
     }
 
     fn register_moleculer_metrics(&self) {

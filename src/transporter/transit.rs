@@ -736,7 +736,7 @@ impl<T: Transporter + Send + Sync> Transit<T> {
 }
 
 #[derive(Debug, Display)]
-enum TransporterEvents {
+pub(crate) enum TransporterEvents {
     #[display(fmt = "$transporter.disconnected")]
     Disconnected,
     #[display(fmt = "$transporter.connected")]

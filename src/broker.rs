@@ -1,4 +1,5 @@
 use anyhow::{bail, Result};
+use circulate::{Relay, Subscriber};
 use log::{debug, info, warn};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -131,7 +132,7 @@ pub(crate) struct ServiceBroker {
     pub(crate) transit: Option<Transit>,
     pub(crate) logger: Arc<Logger>,
     pub(crate) options: Arc<BrokerOptions>,
-
+    local_bus: Relay,
     /*
     local bus
 
@@ -258,7 +259,9 @@ impl ServiceBroker {
             // Delay::new()
         };
     }
-
+    pub(crate) async fn create_subscriber(&self) -> Subscriber {
+        self.local_bus.create_subscriber().await
+    }
     async fn call(
         &self,
         action_name: &str,
@@ -272,7 +275,7 @@ impl ServiceBroker {
             .find_next_action_endpoint(action_name, &opts, &ctx)
             .await?;
         let endpoint = endpoint.clone();
-        
+
         if endpoint.is_local() {
             debug!(
                 "Call action locally. {{ action: {} , request_id : {:?} }}",
@@ -492,8 +495,6 @@ impl ServiceBroker {
         registry.events.emit_local_services(ctx).await;
     }
 
-  
-
     fn generate_uid() -> String {
         utils::generate_uuid()
     }
@@ -629,7 +630,7 @@ mod tests {
     use crate::{
         registry::{Action, Visibility},
         service::{Schema, SchemaMerged},
-        Registry, Service, BrokerSender,
+        BrokerSender, Registry, Service,
     };
     use tokio::{sync::mpsc, task};
 
@@ -675,6 +676,7 @@ mod tests {
             logger: Arc::new(Logger {}),
             options: broker_options,
             registry,
+            local_bus: Relay::default(),
         }
     }
     fn get_test_schema(dependencies: Option<Vec<String>>) -> Schema {
