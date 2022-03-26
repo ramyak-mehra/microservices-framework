@@ -46,13 +46,7 @@ impl LocalDiscoverer {
             node_id,
         }
     }
-    async fn start_heatbeat_timers(&mut self) {
-        self.stop_heartbeat_timers().await;
-        if self.opts().heartbeat_interval > Duration::from_secs(0) {
-            // Add random delay.
-            let time = self.opts.heartbeat_interval;
-        }
-    }
+    
     fn transit_sender(&self) -> mpsc::UnboundedSender<TransitMessage> {
         self.transit.clone()
     }
@@ -103,7 +97,7 @@ impl Discoverer<NatsTransporter> for LocalDiscoverer {
         node_id: Option<String>,
         disable_balancer: bool,
     ) {
-        let info = registry.read().await.get_local_node_info(false);
+        let info = registry.write().await.get_local_node_info(false);
         match info {
             Ok(info) => {
                 if let None = node_id {

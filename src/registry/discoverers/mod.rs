@@ -12,6 +12,7 @@ pub(crate) use tokio::sync::{mpsc, RwLock};
 use tokio_js_set_interval::{_set_interval_spawn, clear_interval};
 
 use crate::{
+    broker::BrokerOptions,
     broker_delegate::BrokerDelegate,
     transporter::transit::{TransitMessage, TransporterEvents},
     utils, BrokerSender, DiscovererSender, SharedRegistry, TransitSender,
@@ -345,6 +346,7 @@ where
             });
         }
     }
+    
 }
 
 #[derive(Debug, Display)]
@@ -364,6 +366,18 @@ pub(crate) struct DiscovererOpts {
     heartbeat_interval: Duration,
     heartbeat_timout: Duration,
 }
+impl Default for DiscovererOpts {
+    fn default() -> Self {
+        Self {
+            disable_heartbeat_checks: false,
+            disable_offline_node_removing: false,
+            clean_offline_nodes_timeout: Duration::from_secs(10 * 60),
+            heartbeat_interval: Duration::from_secs(5),
+            heartbeat_timout: Duration::from_secs(15),
+        }
+    }
+}
+
 pub(crate) enum DiscovererMessage {
     StartHeartbeatTimer,
     StopHeartbeatTimer,
@@ -393,3 +407,147 @@ pub(crate) enum TimersId {
     Offline,
 }
 
+#[cfg(test)]
+mod tests {
+    use circulate::Relay;
+
+    use crate::{
+        broker::BrokerOptions,
+        registry::{Logger, Payload},
+    };
+
+    use super::*;
+
+    fn get_test_broker(
+        recv: mpsc::UnboundedReceiver<ServiceBrokerMessage>,
+        sender: BrokerSender,
+        registry: Arc<RwLock<Registry>>,
+        broker_options: Arc<BrokerOptions>,
+        instance: String,
+        node_id: String,
+    ) -> ServiceBroker {
+        ServiceBroker {
+            reciever: recv,
+            started: false,
+            namespace: None,
+            metdata: Payload {},
+            sender,
+            instance,
+            node_id,
+            services: Vec::new(),
+            transit: None,
+            logger: Arc::new(Logger {}),
+            options: broker_options,
+            registry,
+            local_bus: Relay::default(),
+        }
+    }
+    async fn get_test_registry(
+        node_id: &str,
+        instance: &str,
+        broker_options: Arc<BrokerOptions>,
+        broker_sender: BrokerSender,
+    ) -> Arc<RwLock<Registry>> {
+        let registry = Arc::new(RwLock::new(Registry::new(
+            broker_sender.clone(),
+            node_id.to_owned(),
+            instance.to_owned(),
+            broker_options
+        )));
+        registry.write().await.regenerate_local_raw_info(None);
+        registry
+    }
+
+    fn get_discoverer(
+        broker_sender: BrokerSender,
+        transit_sender: TransitSender,
+        broker: Arc<BrokerDelegate>,
+        registry: Arc<RwLock<Registry>>,
+        node_id: &str,
+    ) -> LocalDiscoverer {
+        let opts = DiscovererOpts::default();
+        LocalDiscoverer::new(
+            transit_sender,
+            registry,
+            opts,
+            broker_sender,
+            broker,
+            node_id.to_owned(),
+        )
+    }
+
+    async fn get_test_discoverer() -> (LocalDiscoverer, mpsc::UnboundedReceiver<TransitMessage>) {
+        let node_id = "test_node".to_string();
+        let instance = "test_instance".to_string();
+        let (broker_sender, recv) = mpsc::unbounded_channel::<ServiceBrokerMessage>();
+        let (transit_sender, transit_recv) = mpsc::unbounded_channel::<TransitMessage>();
+        let broker_options = Arc::new(BrokerOptions::default());
+        let registry = get_test_registry(
+            &node_id,
+            &instance,
+            Arc::clone(&broker_options),
+            broker_sender.clone(),
+        ).await;
+        let broker = get_test_broker(
+            recv,
+            broker_sender.clone(),
+            registry.clone(),
+            broker_options.clone(),
+            instance.clone(),
+            node_id.clone(),
+        );
+        let mut broker_delegate = BrokerDelegate::new();
+        broker_delegate.set_broker(Arc::new(broker));
+        let broker_delegate = Arc::new(broker_delegate);
+        (
+            get_discoverer(
+                broker_sender,
+                transit_sender,
+                broker_delegate,
+                registry.clone(),
+                &node_id,
+            ),
+            transit_recv,
+        )
+    }
+
+    #[tokio::test]
+    async fn test_disover_nodes() {
+        let (mut discoverer, mut transit_recv) = get_test_discoverer().await;
+        let discoverer_sender = discoverer.discoverer_sender();
+        discoverer.init().await;
+        tokio::spawn(async move {
+            discoverer.message_handler().await;
+        });
+        let transit_jh = tokio::spawn(async move {
+            while let Some(msg) = transit_recv.recv().await {
+                assert!(matches!(msg, TransitMessage::DiscoverNodes));
+                break;
+            }
+        });
+        let (sender, recv) = oneshot::channel::<()>();
+        let _ = discoverer_sender.send(DiscovererMessage::DiscoverAllNodes(sender));
+        transit_jh.await;
+    }
+    #[tokio::test]
+    async fn test_send_local_node_info() {
+        let (mut discoverer, mut transit_recv) = get_test_discoverer().await;
+        let discoverer_sender = discoverer.discoverer_sender();
+        discoverer.init().await;
+        tokio::spawn(async move {
+            discoverer.message_handler().await;
+        });
+        let transit_jh = tokio::spawn(async move {
+            while let Some(msg) = transit_recv.recv().await {
+                assert!(matches!(msg, TransitMessage::SendNodeInfo { .. }));
+                break;
+            }
+        });
+        let (sender, recv) = oneshot::channel::<()>();
+        let _ = discoverer_sender.send(DiscovererMessage::SendLocalNodeInfo(
+            Some("test_node".to_string()),
+            sender,
+        ));
+        transit_jh.await;
+    }
+}

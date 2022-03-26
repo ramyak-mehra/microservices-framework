@@ -121,18 +121,18 @@ impl Default for BrokerOptions {
 #[derive(Debug)]
 
 pub(crate) struct ServiceBroker {
-    reciever: UnboundedReceiver<ServiceBrokerMessage>,
+    pub(crate) reciever: UnboundedReceiver<ServiceBrokerMessage>,
     pub(crate) sender: UnboundedSender<ServiceBrokerMessage>,
     pub(crate) started: bool,
     pub(crate) namespace: Option<String>,
-    metdata: Payload,
+    pub(crate) metdata: Payload,
     pub(crate) node_id: String,
     pub(crate) instance: String,
-    services: Vec<Service>,
+    pub(crate) services: Vec<Service>,
     pub(crate) transit: Option<Transit>,
     pub(crate) logger: Arc<Logger>,
     pub(crate) options: Arc<BrokerOptions>,
-    local_bus: Relay,
+    pub(crate) local_bus: Relay,
     /*
     local bus
 
@@ -146,7 +146,7 @@ pub(crate) struct ServiceBroker {
     tracer
     transporter
     */
-    registry: Arc<RwLock<Registry>>,
+    pub(crate) registry: Arc<RwLock<Registry>>,
 }
 #[derive(Debug)]
 
@@ -447,6 +447,7 @@ impl ServiceBroker {
         for fut in futures {
             fut.await;
         }
+        
     }
 
     /// Broadcast an event for all local services
@@ -472,7 +473,7 @@ impl ServiceBroker {
     }
 
     pub(crate) async fn get_local_node_info(&self) -> anyhow::Result<NodeRawInfo> {
-        self.registry.read().await.get_local_node_info(false)
+        self.registry.write().await.get_local_node_info(false)
     }
 
     async fn get_event_groups(&self, event_name: &str) -> Vec<String> {

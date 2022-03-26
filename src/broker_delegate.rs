@@ -18,7 +18,7 @@ pub(crate) struct BrokerDelegate {
 }
 
 impl BrokerDelegate {
-    fn init() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             broker: None,
             node_id: "".to_string(),

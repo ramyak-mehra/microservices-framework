@@ -112,6 +112,9 @@ impl Registry {
                 let service = self.services.get_at(service_pos)?;
                 local_node.services.push(service.into());
             }
+            //TODO: this.broker.started instead of true
+            self.regenerate_local_raw_info(Some(true));
+            info!("{} service is registered." , svc.name);
         }
         Ok(())
     }
@@ -220,12 +223,19 @@ impl Registry {
         self.events.remove(event_name, node_id);
     }
 
-    fn regenerate_local_raw_info(&self, inc_seq: Option<bool>) -> anyhow::Result<NodeRawInfo> {
-        // let mut node = self.nodes.local_node_mut()?;
-        todo!("")
+   pub(crate) fn regenerate_local_raw_info(&mut self, inc_seq: Option<bool>) -> anyhow::Result<NodeRawInfo> {
+        let mut node = self.nodes.local_node_mut()?;
+        if let Some(inc_seq) = inc_seq {
+            if inc_seq {
+                node.seq += 1;
+            }
+        }
+        let raw_info = NodeRawInfo::from_node(node);
+        node.set_raw_info(raw_info.clone());
+        Ok(raw_info)
     }
 
-    pub(crate) fn get_local_node_info(&self, force: bool) -> anyhow::Result<NodeRawInfo> {
+    pub(crate) fn get_local_node_info(&mut self, force: bool) -> anyhow::Result<NodeRawInfo> {
         // if let None = self.nodes.local_node() {
         //     return Ok(self.regenerate_local_raw_info(None));
         // }
@@ -235,7 +245,7 @@ impl Registry {
 
         Ok(self.nodes.local_node()?.raw_info().to_owned())
     }
-    fn get_node_info(&self, node_id: &str) -> Option<NodeRawInfo> {
+    fn get_node_info(&mut self, node_id: &str) -> Option<NodeRawInfo> {
         match self.nodes.get_node(node_id) {
             Some(node) => {
                 if node.local {

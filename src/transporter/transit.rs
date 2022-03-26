@@ -746,6 +746,7 @@ pub(crate) enum TransporterEvents {
     #[display(fmt = "$node.pong")]
     Pong,
 }
+#[derive(Debug)]
 pub(crate) enum TransitMessage {
     RecievedMessage {
         cmd: PacketType,
