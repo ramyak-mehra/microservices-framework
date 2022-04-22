@@ -51,7 +51,7 @@ pub(crate)struct Logger {}
 pub(crate)type ActionHandler = fn(Context) -> HandlerResult;
 pub(crate)type EventHandler = fn(Context);
 #[derive(Default, Debug, PartialEq, Eq, Clone , Serialize)]
-pub(crate)struct Payload {}
+pub struct Payload {}
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 

@@ -81,7 +81,8 @@ impl Registry {
         });
     }
     async fn stop(&mut self) {
-        self.discoverer_sender
+        let _ = self
+            .discoverer_sender
             .as_ref()
             .unwrap()
             .send(DiscovererMessage::StopHeartbeatTimer);
@@ -114,7 +115,7 @@ impl Registry {
             }
             //TODO: this.broker.started instead of true
             self.regenerate_local_raw_info(Some(true));
-            info!("{} service is registered." , svc.name);
+            info!("{} service is registered.", svc.name);
         }
         Ok(())
     }
@@ -146,7 +147,7 @@ impl Registry {
                 //Access is broker_sender is present through channels
                 // } else if self.broker_sender.transit.is_some() {
                 //TODO: for remote services
-                return;
+                // return;
             }
             self.actions.add(node, service, action.to_owned());
             //TODO:
@@ -223,7 +224,10 @@ impl Registry {
         self.events.remove(event_name, node_id);
     }
 
-   pub(crate) fn regenerate_local_raw_info(&mut self, inc_seq: Option<bool>) -> anyhow::Result<NodeRawInfo> {
+    pub(crate) fn regenerate_local_raw_info(
+        &mut self,
+        inc_seq: Option<bool>,
+    ) -> anyhow::Result<NodeRawInfo> {
         let mut node = self.nodes.local_node_mut()?;
         if let Some(inc_seq) = inc_seq {
             if inc_seq {

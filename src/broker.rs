@@ -57,7 +57,7 @@ impl Default for RetryPolicy {
 }
 
 #[derive(Debug)]
-pub(crate) struct BrokerOptions {
+pub struct BrokerOptions {
     transporter: String,
     heartbeat_frequency: Duration,
     heartbeat_timeout: Duration,
@@ -120,7 +120,7 @@ impl Default for BrokerOptions {
 
 #[derive(Debug)]
 
-pub(crate) struct ServiceBroker {
+pub struct ServiceBroker {
     pub(crate) reciever: UnboundedReceiver<ServiceBrokerMessage>,
     pub(crate) sender: UnboundedSender<ServiceBrokerMessage>,
     pub(crate) started: bool,
@@ -153,23 +153,23 @@ pub(crate) struct ServiceBroker {
 pub(crate) struct Transit {}
 
 impl ServiceBroker {
-    fn start(&mut self) {
+    pub fn start(&mut self) {
         let time = Utc::now();
         self.started = true;
     }
     pub(crate) fn serializer(&self) -> &JSONSerializer {
         &self.options.serializer
     }
-    fn stop(&mut self) {
+    pub fn stop(&mut self) {
         todo!("handle stopping the broker")
     }
 
-    fn add_local_service(&mut self, service: Service) {
+    pub fn add_local_service(&mut self, service: Service) {
         self.services.push(service);
     }
-    async fn register_local_service(&self, service: ServiceSpec) {
+    pub async fn register_local_service(&self, service: ServiceSpec) {
         let mut registry = self.registry.write().await;
-        registry.register_local_service(service);
+        let result = registry.register_local_service(service);
     }
 
     async fn destroy_service(&mut self, name: &str, version: &str) -> Result<()> {
@@ -262,7 +262,7 @@ impl ServiceBroker {
     pub(crate) async fn create_subscriber(&self) -> Subscriber {
         self.local_bus.create_subscriber().await
     }
-    async fn call(
+    pub async fn call(
         &self,
         action_name: &str,
         params: Payload,
@@ -447,7 +447,6 @@ impl ServiceBroker {
         for fut in futures {
             fut.await;
         }
-        
     }
 
     /// Broadcast an event for all local services
@@ -482,7 +481,7 @@ impl ServiceBroker {
     }
 
     /// Has registered event listener for an event name?
-    async fn has_event_listener(&self, event_name: &str) -> bool {
+    pub async fn has_event_listener(&self, event_name: &str) -> bool {
         let registry = self.registry.read().await;
         let eps = registry.events.get_all_endpoints(event_name, None);
         !eps.is_empty()
@@ -502,7 +501,7 @@ impl ServiceBroker {
 }
 
 #[derive(Debug)]
-pub(crate) enum ServiceBrokerMessage {
+pub enum ServiceBrokerMessage {
     AddLocalService(Service),
     RegisterLocalService(ServiceSpec),
     IsTransit(oneshot::Sender<bool>),
@@ -606,13 +605,14 @@ impl PartialEq for ServiceBrokerMessage {
 }
 
 #[derive(Debug)]
-pub(crate) struct HandlerResult {
+#[repr(C)]
+pub struct HandlerResult {
     // pub(crate) data: u32,
     pub(crate) data: Box<dyn Any + Send + Sync>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct CallOptions {
+pub struct CallOptions {
     meta: Payload,
     node_id: Option<String>,
 }
@@ -739,7 +739,7 @@ mod tests {
             settings,
             schema,
             original_schema: Some(original_schema),
-            metadata: HashMap::new(),
+            metadata: Payload {},
             actions: actions,
             events: None,
             broker_sender,
@@ -814,7 +814,7 @@ mod tests {
                 let start = Local::now();
                 let sender = sender.clone();
                 let mut jhs = Vec::new();
-                for _ in 0..10 {
+                for _ in 0..1 {
                     let sender = sender.clone();
                     let jh = task::spawn(async move {
                         let (one_sender, recv) = oneshot::channel();
@@ -829,7 +829,7 @@ mod tests {
                             result_channel: one_sender,
                         });
                         let _result = recv.await;
-                        println!("{:?}", _result);
+                        println!("{:?}", _result.unwrap().unwrap().data);
                     });
                     jhs.push(jh);
                 }

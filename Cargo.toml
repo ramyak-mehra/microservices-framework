@@ -4,6 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+build = "build.rs"
+
+[build-dependencies]
+cbindgen = "0.21.0"
+[lib]
+crate-type = ["cdylib"]
 
 [dependencies]
 chrono = "0.4.19"
@@ -26,3 +32,5 @@ async-nats = "0.10.1"
 circulate = "0.2.1"
 process_uptime = "0.1.4"
 tokio-js-set-interval = "1.1.0"
+libc = "0.2.123"
+async-ffi = "0.4.0"

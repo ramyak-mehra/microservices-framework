@@ -1,26 +1,28 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, str::ParseBoolError};
 
 use crate::{
-    registry::{Action, ActionHandler, Event},
-    ServiceBrokerMessage,
+    broker::HandlerResult,
+    context::Context,
+    registry::{Action, ActionHandler, Event, Payload},
+    BrokerSender, ServiceBrokerMessage,
 };
 use log::info;
+use serde_json::from_str;
 use tokio::sync::mpsc::UnboundedSender;
 
 #[derive(Clone, Debug)]
-pub(crate) struct Service {
+pub struct Service {
     pub(crate) name: String,
     pub(crate) full_name: String,
     pub(crate) version: String,
     pub(crate) settings: HashMap<String, String>,
     pub(crate) schema: Schema,
     pub(crate) original_schema: Option<Schema>,
-    pub(crate) metadata: HashMap<String, String>,
+    pub(crate) metadata: Payload,
     pub(crate) actions: Option<Vec<Action>>,
     pub(crate) events: Option<HashMap<String, Event>>,
     pub(crate) broker_sender: UnboundedSender<ServiceBrokerMessage>,
 }
-
 impl PartialEq for Service {
     fn eq(&self, other: &Self) -> bool {
         self.name == other.name
@@ -36,7 +38,7 @@ impl PartialEq for Service {
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
-pub(crate) struct Schema {
+pub struct Schema {
     pub(crate) mixins: Option<Vec<SchemaMixins>>,
     pub(crate) actions: Option<Vec<SchemaActions>>,
     pub(crate) events: Option<Vec<SchemaEvents>>,
@@ -44,20 +46,40 @@ pub(crate) struct Schema {
     pub(crate) name: String,
     pub(crate) version: Option<String>,
     pub(crate) settings: HashMap<String, String>,
-    pub(crate) metadata: Option<HashMap<String, String>>,
+    pub(crate) metadata: Option<Payload>,
     pub(crate) created: Option<fn()>,
     pub(crate) started: Option<fn()>,
     pub(crate) stopped: Option<fn()>,
     pub(crate) dependencies: Option<Vec<String>>,
 }
+fn test_func(){
 
+}
+impl Schema {
+  pub  fn new(name: String, version: Option<String>, action: SchemaActions) -> Schema {
+        Schema {
+            mixins: None,
+            actions: Some(vec![action]),
+            events: None,
+            merged: SchemaMerged::MergedFn(test_func),
+            name,
+            version,
+            settings: HashMap::new(),
+            metadata: None,
+            created: None,
+            started: None,
+            stopped: None,
+            dependencies: None,
+        }
+    }
+}
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub(crate) struct SchemaMixins {}
 
 #[derive(PartialEq, Eq, Clone, Debug)]
-pub(crate) struct SchemaActions {
-    name: String,
-    handler: fn(),
+pub struct SchemaActions {
+    pub(crate) name: String,
+    pub(crate) handler: ActionHandler,
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
@@ -68,7 +90,7 @@ pub(crate) enum SchemaMerged {
     MergedFnVec(Vec<fn()>),
 }
 #[derive(PartialEq, Debug)]
-pub(crate) struct ServiceSpec {
+pub struct ServiceSpec {
     pub(crate) name: String,
     pub(crate) version: String,
     pub(crate) full_name: String,
@@ -95,8 +117,8 @@ impl Service {
         }
     }
 
-    fn parse_service_schema(&mut self, schema: Schema) {
-        self.original_schema = Some(schema.clone());
+    pub fn from_schema(schema: Schema, broker_sender: BrokerSender) -> Service {
+        let original_schema = Some(schema.clone());
 
         match schema.merged {
             SchemaMerged::MergedFn(merged) => merged(),
@@ -107,27 +129,56 @@ impl Service {
             }
         }
 
-        self.name = schema.name;
-        self.version = match schema.version {
+        let name = schema.name;
+        let version = match schema.version {
             Some(v) => v,
             None => "0.0.1".to_string(),
         };
-        self.settings = schema.settings;
-        self.metadata = match schema.metadata {
+        let settings = schema.settings;
+        let metadata = match schema.metadata {
             Some(metadata) => metadata,
-            None => HashMap::new(),
+            None => Payload {},
         };
         //TODO:
         //self.schema = schema;
-        let version = self.settings.get("$noVersionPrefix");
+        let no_version_prefix = settings.get("$noVersionPrefix");
+        let add_version = match no_version_prefix {
+            Some(no_version_prefix) => {
+                let no_version_prefix: Result<bool, ParseBoolError> = no_version_prefix.parse();
+                match no_version_prefix {
+                    Ok(val) => match val {
+                        true => None,
+                        false => Some(&version),
+                    },
+                    Err(_) => None,
+                }
+            }
+            None => None,
+        };
+        let full_name = Service::get_versioned_full_name(&name, add_version);
 
-        self.full_name = Service::get_versioned_full_name(&self.name, version);
-        //TODO: get the logger from the broker.
-        //self.logger =
-
+        let mut svc = Service {
+            name,
+            full_name,
+            version,
+            settings,
+            schema: original_schema.clone().unwrap(),
+            original_schema,
+            metadata,
+            actions: None,
+            events: None,
+            broker_sender,
+        };
         //TODO:register methods.
+        if let Some(actions) = schema.actions {
+            let actions: Vec<Action> = actions
+                .into_iter()
+                .map(|action| svc.create_action(action.handler, &action.name))
+                .collect();
+            svc.actions = Some(actions);
+        };
 
-        todo!("add service specification")
+        todo!("add service specification");
     }
 
     fn get_public_settings(&self) -> HashMap<String, String> {
@@ -319,7 +370,7 @@ mod tests {
             settings,
             schema,
             original_schema: Some(original_schema),
-            metadata: HashMap::new(),
+            metadata: Payload {},
             actions: actions,
             events: None,
             broker_sender,
